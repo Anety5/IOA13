@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Idea Optimizer AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0KOVEMMZMvyZnqcpM6HhO1NgAACRxAbevsFBGNPqLpNbeNHflrLqd" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlVwcjNcsEMpl5end+NBoeL0ssazvzcT3iAnda5ydVsdQaZKTTCxEy4Iuhk" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+      /* Ensures the app fills the window and prevents default body margin */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #0f172a; /* slate-900: Match body bg to prevent white flashes on overscroll */
+      }
+      #root {
+        height: 100%;
+      }
+      /* Improves scroll behavior on mobile by preventing pull-to-refresh on the main layout */
+      body {
+        overscroll-behavior-y: contain;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.27.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-slate-900 text-white">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
