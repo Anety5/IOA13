@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { TranslatorViewState } from '../../utils/projects';
 import { translateText, textToSpeech } from '../../services/geminiService';
@@ -8,16 +7,32 @@ import { SaveIcon } from '../icons/SaveIcon';
 import SaveToProjectModal from '../SaveToProjectModal';
 import { SpeakerIcon } from '../icons/SpeakerIcon';
 import { CopyIcon } from '../icons/CopyIcon';
+import { HamburgerIcon } from '../icons/HamburgerIcon';
+import { ChatIcon } from '../icons/ChatIcon';
 
 interface TranslatorViewProps {
   state: TranslatorViewState;
   setState: React.Dispatch<React.SetStateAction<TranslatorViewState>>;
   setViewContext: (context: string) => void;
+  onSidebarToggle: () => void;
+  onChatToggle: () => void;
 }
 
-const languages = { "en": "English", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian", "pt": "Portuguese", "ru": "Russian", "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "ar": "Arabic", "hi": "Hindi" };
+const languages = {
+    "af": "Afrikaans", "ar": "Arabic", "bn": "Bengali", "bg": "Bulgarian", "ca": "Catalan",
+    "zh": "Chinese", "hr": "Croatian", "cs": "Czech", "da": "Danish", "nl": "Dutch",
+    "en": "English", "et": "Estonian", "fil": "Filipino", "fi": "Finnish", "fr": "French",
+    "de": "German", "el": "Greek", "gu": "Gujarati", "he": "Hebrew", "hi": "Hindi",
+    "hu": "Hungarian", "is": "Icelandic", "id": "Indonesian", "it": "Italian", "ja": "Japanese",
+    "kn": "Kannada", "ko": "Korean", "lv": "Latvian", "lt": "Lithuanian", "ms": "Malay",
+    "ml": "Malayalam", "mr": "Marathi", "no": "Norwegian", "pl": "Polish", "pt": "Portuguese",
+    "ro": "Romanian", "ru": "Russian", "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian",
+    "es": "Spanish", "sw": "Swahili", "sv": "Swedish", "ta": "Tamil", "te": "Telugu",
+    "th": "Thai", "tr": "Turkish", "uk": "Ukrainian", "ur": "Urdu", "vi": "Vietnamese"
+};
 
-const TranslatorView: React.FC<TranslatorViewProps> = ({ state, setState, setViewContext }) => {
+
+const TranslatorView: React.FC<TranslatorViewProps> = ({ state, setState, setViewContext, onSidebarToggle, onChatToggle }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -64,6 +79,10 @@ const TranslatorView: React.FC<TranslatorViewProps> = ({ state, setState, setVie
         setIsLoading(true);
         setError('');
         try {
+            // Fix: Resume AudioContext on user gesture, as required by modern browsers.
+            if (audioContextRef.current.state === 'suspended') {
+                await audioContextRef.current.resume();
+            }
             const base64Audio = await textToSpeech(state.translatedText);
             const source = await playAudio(base64Audio, audioContextRef.current, () => setIsSpeaking(false));
             audioSourceRef.current = source;
@@ -85,7 +104,14 @@ const TranslatorView: React.FC<TranslatorViewProps> = ({ state, setState, setVie
 
     return (
         <div className="p-4 md:p-8 flex flex-col h-full bg-slate-800 text-white">
-            <header className="flex-shrink-0 mb-6 flex justify-between items-center">
+             {/* Mobile Header */}
+            <header className="md:hidden p-2 flex justify-between items-center mb-4 flex-shrink-0">
+                <button onClick={onSidebarToggle} className="p-2"><HamburgerIcon /></button>
+                <h1 className="font-semibold">Translator</h1>
+                <button onClick={onChatToggle} className="p-2"><ChatIcon /></button>
+            </header>
+            
+            <header className="flex-shrink-0 mb-6 justify-between items-center hidden md:flex">
                 <h1 className="text-2xl font-bold">Translator</h1>
                 <button
                     onClick={() => setIsModalOpen(true)}

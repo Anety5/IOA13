@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import OptimizerView from './components/views/OptimizerView';
 import ImageView from './components/views/ImageView';
@@ -41,6 +40,7 @@ const initialImageViewState: ImageViewState = {
   error: null,
   numberOfImages: 1,
   aspectRatio: '1:1',
+  style: 'none',
 };
 
 const initialTranslatorState: TranslatorViewState = {
@@ -91,17 +91,15 @@ const App: React.FC = () => {
       case 'optimizer':
         return <OptimizerView state={optimizerState} setState={setOptimizerState} setViewContext={setViewContext} {...commonProps} />;
       case 'image':
-        // Pass commonProps if ImageView gets its own header
-        return <ImageView state={imageViewState} setState={setImageViewState} setViewContext={setViewContext} />;
+        return <ImageView state={imageViewState} setState={setImageViewState} setViewContext={setViewContext} {...commonProps} />;
       case 'translator':
-        // Pass commonProps if TranslatorView gets its own header
-        return <TranslatorView state={translatorState} setState={setTranslatorState} setViewContext={setViewContext} />;
+        return <TranslatorView state={translatorState} setState={setTranslatorState} setViewContext={setViewContext} {...commonProps} />;
       case 'live':
-        return <LiveConversationView />;
+        return <LiveConversationView {...commonProps} />;
       case 'video':
-        return <VideoView />;
+        return <VideoView {...commonProps} />;
       case 'projects':
-        return <ProjectsView onLoadAsset={handleLoadAsset} />;
+        return <ProjectsView onLoadAsset={handleLoadAsset} {...commonProps} />;
       default:
         return <div className="p-8">Select a tool to get started.</div>;
     }
