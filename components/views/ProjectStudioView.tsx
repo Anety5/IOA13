@@ -10,6 +10,7 @@ import { CloseIcon } from '../icons/CloseIcon';
 import { fileToBase64 } from '../../utils/image';
 import { SummarizeIcon } from '../icons/SummarizeIcon';
 import { PenIcon } from '../icons/PenIcon';
+import { RefreshIcon } from '../icons/RefreshIcon';
 
 interface ProjectStudioViewProps {
   state: ProjectStudioViewState;
@@ -23,28 +24,30 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }
   const [modifyPrompt, setModifyPrompt] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const handleAction = async (action: 'summarize' | 'modify') => {
+  const handleAction = async (action: 'summary' | 'modification', instructionOverride?: string) => {
     if (!state.mainText.trim()) return;
-    if (action === 'modify' && !modifyPrompt.trim()) return;
+    
+    const instruction = instructionOverride ?? modifyPrompt;
+    if (action === 'modification' && !instruction.trim()) return;
 
     setIsLoading(true);
     setError('');
     try {
         let response;
-        if (action === 'summarize') {
+        if (action === 'summary') {
             response = await summarizeText(state.mainText);
         } else {
-            response = await modifyText(state.mainText, modifyPrompt);
+            response = await modifyText(state.mainText, instruction);
         }
 
       const newResult: ProjectStudioResult = {
-        // FIX: Map action 'summarize'/'modify' to the required type 'summary'/'modification'.
-        type: action === 'summarize' ? 'summary' : 'modification',
+        type: action,
         content: response.text,
-        prompt: action === 'modify' ? modifyPrompt : undefined,
+        prompt: action === 'modification' ? instruction : undefined,
       };
       setState(s => ({ ...s, results: [newResult, ...s.results] }));
-      if (action === 'modify') {
+      
+      if (action === 'modification' && !instructionOverride) {
           setModifyPrompt('');
       }
     } catch (err: any) {
@@ -100,7 +103,7 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col p-4">
+        <div className="flex-1 flex flex-col p-4 border-r border-slate-700">
           <div className="flex justify-between items-center mb-2">
               <h2 className="text-lg font-medium">Content</h2>
               <button 
@@ -125,7 +128,7 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }
             className="w-full flex-1 p-3 bg-slate-900 rounded-md resize-none focus:outline-none placeholder-slate-500 text-slate-300"
           />
           {state.attachments.length > 0 && (
-              <div className="mt-3">
+              <div className="mt-3 flex-shrink-0">
                   <p className="text-sm text-slate-400 mb-2">Attachments:</p>
                   <div className="flex flex-wrap gap-2">
                       {state.attachments.map((att, index) => (
@@ -146,9 +149,34 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }
                   </div>
               </div>
           )}
-           <div className="mt-4 flex flex-col sm:flex-row gap-4">
+        </div>
+        
+        {/* Results Area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-4 overflow-y-auto flex-1">
+              <h2 className="text-lg font-medium mb-4">Results</h2>
+              {isLoading && state.results.length === 0 && <div className="flex justify-center pt-8"><Loader /></div>}
+              {error && <p className="text-red-400">{error}</p>}
+              <div className="space-y-4">
+                {state.results.map((result, index) => (
+                  <div key={index} className="bg-slate-900/70 p-4 rounded-lg border border-slate-700 group relative">
+                    <h3 className="font-semibold text-indigo-400 capitalize mb-2">{result.type}</h3>
+                    {result.prompt && <p className="text-sm text-slate-400 italic mb-2">Instruction: "{result.prompt}"</p>}
+                    <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }}></div>
+                     <button 
+                        onClick={() => handleAction(result.type, result.prompt)}
+                        className="absolute top-2 right-2 p-1.5 rounded-full text-slate-400 bg-slate-800/50 opacity-0 group-hover:opacity-100 hover:bg-slate-700 hover:text-white transition-opacity"
+                        title="Regenerate"
+                      >
+                          <RefreshIcon />
+                      </button>
+                  </div>
+                ))}
+              </div>
+          </div>
+           <div className="p-4 border-t border-slate-700 flex-shrink-0 flex flex-col sm:flex-row gap-4">
                 <button
-                    onClick={() => handleAction('summarize')}
+                    onClick={() => handleAction('summary')}
                     disabled={isLoading || !state.mainText.trim()}
                     className="flex-1 py-2.5 text-base font-semibold rounded-md bg-cyan-600 hover:bg-cyan-700 transition-colors flex items-center justify-center gap-2 disabled:bg-cyan-800 disabled:cursor-not-allowed"
                 >
@@ -163,7 +191,7 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }
                         className="flex-grow bg-slate-700 text-white rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                     <button
-                        onClick={() => handleAction('modify')}
+                        onClick={() => handleAction('modification')}
                         disabled={isLoading || !state.mainText.trim() || !modifyPrompt.trim()}
                         className="py-2.5 px-4 text-base font-semibold rounded-md bg-purple-600 hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:bg-purple-800 disabled:cursor-not-allowed"
                     >
@@ -171,22 +199,6 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }
                     </button>
                 </div>
             </div>
-        </div>
-        
-        {/* Results Area */}
-        <div className="flex-1 p-4 overflow-y-auto border-t lg:border-t-0 lg:border-l border-slate-700">
-          <h2 className="text-lg font-medium mb-4">Results</h2>
-          {isLoading && state.results.length === 0 && <div className="flex justify-center pt-8"><Loader /></div>}
-          {error && <p className="text-red-400">{error}</p>}
-          <div className="space-y-4">
-            {state.results.map((result, index) => (
-              <div key={index} className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
-                <h3 className="font-semibold text-indigo-400 capitalize mb-2">{result.type}</h3>
-                {result.prompt && <p className="text-sm text-slate-400 italic mb-2">Instruction: "{result.prompt}"</p>}
-                <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }}></div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
       <SaveToProjectModal

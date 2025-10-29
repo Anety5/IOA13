@@ -1,4 +1,3 @@
-
 // States for different views
 export interface OptimizerViewState {
   inputText: string;
@@ -30,6 +29,7 @@ export interface ImageViewState {
   numberOfImages: number;
   aspectRatio: "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
   images: GeneratedImage[];
+  sourceImage: { base64: string; mimeType: string } | null;
 }
 
 export interface ProjectStudioResult {

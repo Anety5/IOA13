@@ -38,6 +38,7 @@ const App: React.FC = () => {
         numberOfImages: 1,
         aspectRatio: '1:1',
         images: [],
+        sourceImage: null,
     });
     const [translatorViewState, setTranslatorViewState] = useState<TranslatorViewState>({
         sourceText: '',

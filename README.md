@@ -2,18 +2,17 @@
 
 **IOAI Studio** is a powerful, all-in-one web application that leverages the full suite of Google's Gemini AI models to provide a seamless and intuitive creative experience. As a fully client-side application with **no build process**, it runs directly in any modern web browser and can be deployed to any static hosting service in seconds.
 
-This application serves not only as a powerful productivity tool but also as a live, interactive reference implementation for the Gemini API.
+This application serves as a powerful productivity tool and a live, interactive reference implementation for the Gemini API.
 
 ## Features
 
--   **✍️ Optimizer**: Optimize, summarize, and proofread text with fine-grained controls for creativity and complexity.
--   **💡 Project Studio**: A flexible workspace to upload documents and images, then summarize, modify, or brainstorm with AI assistance.
--   **🌐 AI Translator**: Translate text between numerous languages with auto-detection and text-to-speech capabilities.
--   **💬 AI Chat**: Engage in advanced conversations with options for deep reasoning ("Thinking Mode") and up-to-date information via Google Search grounding.
--   **🖼️ Image Studio**: Generate, edit, and analyze images using powerful text prompts and artistic style presets.
--   **🎙️ Live Conversation**: Have a natural, real-time voice chat with the AI, including the ability to discuss uploaded images.
--   **📁 My Projects**: Save and organize all your work—text, chats, images, and translations—directly in your browser's local storage.
--   **👨‍💻 Live API Reference**: A unique educational feature. Click the **</>** icon in any view to see the exact, dynamic Gemini API code used for that specific task. This turns the app into a hybrid tool and a live learning resource.
+-   **✍️ Content Optimizer**: Revise text with fine-grained controls for audience, goal, formality, complexity, and tone. Includes proofreading and plagiarism checks.
+-   **💡 Project Studio**: A flexible workspace to upload documents (.txt) and images, then use one-click AI actions like "Summarize" or "Modify" to transform your content.
+-   **🌐 AI Translator**: Translate text between **over 70 languages** with auto-detection and text-to-speech capabilities to hear the translated content.
+-   **🖼️ Image Studio**: Generate high-quality images from text prompts using Imagen 4. Apply artistic style presets like "Photorealistic," "Anime," and "3D" to enhance your creations.
+-   **💬 AI Assistant**: Engage in helpful conversations with an integrated AI chat assistant available throughout the app.
+-   **📁 My Projects**: Save and organize all your work—optimized text, project studio sessions, translations, and images—directly in your browser's local storage.
+-   **✨ Coming Soon**: We are actively working on integrating **Video Generation** capabilities to bring your stories and ideas to life in a new dimension.
 
 ## Technology Stack
 
@@ -28,22 +27,24 @@ This application serves not only as a powerful productivity tool but also as a l
 
 This application demonstrates a wide range of Gemini API capabilities:
 
--   **Advanced Text Generation (`gemini-2.5-pro`)**: Used in the **Optimizer** for high-quality text manipulation with complex system instructions.
--   **Fast Text Generation (`gemini-2.5-flash`)**: Powers the **AI Translator**, **Project Studio**, and standard **AI Chat** for quick and efficient responses.
--   **Function Calling (Tools)**: The **AI Chat**'s "Search" feature uses `googleSearch` as a tool to ground responses in real-time information from the web.
--   **Image Generation (`imagen-4.0-generate-001`)**: The core of the **Image Studio**'s generation capability, creating high-quality images from text prompts.
--   **Multi-modality (Image + Text)**: Used in the **Image Studio** to edit (`gemini-2.5-flash-image`) and analyze (`gemini-2.5-flash`) user-uploaded images.
--   **Text-to-Speech (`gemini-2.5-flash-preview-tts`)**: Powers the "Read Aloud" feature in the Optimizer and Translator views.
--   **Live Audio Streaming (`gemini-2.5-flash-native-audio-preview-09-2025`)**: The foundation of the **Live Conversation** view, enabling real-time, low-latency voice interaction and transcription.
+-   **Advanced Text Generation (`gemini-2.5-pro`)**: Used in the **Content Optimizer** and **Project Studio's** "Modify" feature for high-quality text manipulation that requires following complex instructions.
+-   **Fast Text Generation (`gemini-2.5-flash`)**: Powers the **AI Translator**, the **Project Studio's** "Summarize" action, and the **AI Assistant** for quick and efficient responses.
+-   **Image Generation (`imagen-4.0-generate-001`)**: The core of the **Image Studio**, creating high-quality, photorealistic images from text prompts.
+-   **Text-to-Speech (`gemini-2.5-flash-preview-tts`)**: Powers the "Read Aloud" feature in the Translator view, converting text into natural-sounding audio.
 
 ---
 
-## Development Journey & Challenges
+## Development Journey & Current Challenges
 
-Building a cutting-edge AI application comes with unique challenges. Here are some we tackled:
-1.  **Robust Math Rendering**: The Gemini models can output complex LaTeX formulas. To render them correctly without conflicting with Markdown parsing, we implemented a placeholder strategy. The app first isolates all LaTeX expressions, processes the remaining Markdown, and then renders the math formulas using KaTeX.
-2.  **Real-time Audio Processing**: The Live Conversation feature requires processing raw PCM audio streams from the browser. We wrote custom encoder/decoder functions to handle this data format, as standard browser APIs are designed for file-based audio, not raw streams.
-3.  **Browser Compatibility**: To take full advantage of the latest web standards and experimental AI features, **it is highly recommended to run this application in a bleeding-edge browser like Chrome Canary**. This ensures the best performance and access to all functionalities, especially for features like the Web Speech API and real-time audio contexts.
+Building a cutting-edge AI application comes with unique challenges. Here are some we are actively addressing:
+
+1.  **Visual Consistency in Image Generation**: Generating a sequence of images (like for a storyboard) that maintain a consistent character or style is a significant challenge. It requires sophisticated prompt engineering to guide the model, and even then, variations can occur. This is an active area of development for the platform.
+
+2.  **Browser Storage Limitations**: The "My Projects" feature relies on the browser's `localStorage`. While convenient for a client-side app, it has size limitations (typically 5-10MB). Storing numerous high-resolution images can quickly exhaust this space, leading to save errors. Future versions may explore more robust storage solutions.
+
+3.  **Real-time Information Access**: The AI models do not have live access to the internet for information like today's weather or breaking news. Their knowledge is based on the data they were trained on, which has a cutoff date. Future integrations may use Gemini's tool-use capabilities to access real-time data.
+
+4.  **Future API Requirements (Video)**: As we plan to integrate video generation (e.g., using Google's Veo model), users should be aware that these advanced models often have specific API key requirements, such as needing a Google Cloud project with billing enabled, which is a different setup from the standard Gemini API key used for text and image generation.
 
 ---
 
@@ -51,7 +52,7 @@ Building a cutting-edge AI application comes with unique challenges. Here are so
 
 ### Prerequisites
 -   [Node.js](https://nodejs.org/) (for the `npx` command)
--   **Recommended Browser**: [Google Chrome Canary](https://www.google.com/chrome/canary/)
+-   **Recommended Browser**: A modern, up-to-date browser like Chrome, Firefox, or Edge.
 
 ### Setup Instructions
 1.  **Clone the Repository**

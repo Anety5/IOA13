@@ -20,6 +20,29 @@ export const generateImages = async (prompt: string, numberOfImages: number, asp
     return response;
 };
 
+export const editImage = async (prompt: string, image: { base64: string; mimeType: string }): Promise<string> => {
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+            parts: [
+                { inlineData: { data: image.base64, mimeType: image.mimeType } },
+                { text: prompt },
+            ],
+        },
+        config: {
+            responseModalities: [Modality.IMAGE],
+        },
+    });
+
+    for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+            return part.inlineData.data;
+        }
+    }
+
+    throw new Error("No image data received from API during edit.");
+};
+
 // For Translator View
 export const translateText = async (text: string, sourceLang: string, targetLang: string): Promise<string> => {
     const prompt = `Translate the following text from ${sourceLang === 'auto' ? 'the detected language' : sourceLang} to ${targetLang}. Only return the translated text, without any additional explanation or formatting.\n\nText: "${text}"`;
@@ -47,7 +70,7 @@ export const textToSpeech = async (text: string): Promise<string> => {
     });
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) {
-        throw new Error("No audio data received from API.");
+        throw new Error("No audio data received from API. The content may be unsupported or blocked by safety filters.");
     }
     return base64Audio;
 };
