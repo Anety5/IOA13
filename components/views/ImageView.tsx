@@ -1,265 +1,197 @@
-import React, { useState, useRef } from 'react';
-import { ImageViewState, GeneratedImage } from '../../utils/projects';
-import { generateImages, editImage } from '../../services/geminiService';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { ImageViewState } from '../../utils/projects';
+import { generateImage, editImage, analyzeImage } from '../../services/geminiService';
 import { fileToBase64 } from '../../utils/image';
 import Loader from '../Loader';
 import { SaveIcon } from '../icons/SaveIcon';
 import SaveToProjectModal from '../SaveToProjectModal';
-import { DownloadIcon } from '../icons/DownloadIcon';
-import { RefreshIcon } from '../icons/RefreshIcon';
 import { UploadIcon } from '../icons/UploadIcon';
-import { PaperclipIcon } from '../icons/PaperclipIcon';
-import { CloseIcon } from '../icons/CloseIcon';
-import { CopyIcon } from '../icons/CopyIcon';
-import { ShareIcon } from '../icons/ShareIcon';
-
+import { PenIcon } from '../icons/PenIcon';
+import { BrainCircuitIcon } from '../icons/BrainCircuitIcon';
+import { SparkleIcon } from '../icons/SparkleIcon';
+import { TrashIcon } from '../icons/TrashIcon';
+import { DownloadIcon } from '../icons/DownloadIcon';
 
 interface ImageViewProps {
   state: ImageViewState;
   setState: React.Dispatch<React.SetStateAction<ImageViewState>>;
+  setViewContext: (context: string) => void;
 }
 
-const stylePresets = ["Photorealistic", "Anime", "3D", "Monochrome", "Abstract", "Watercolor", "Cyberpunk"];
-
-const base64ToBlob = (base64: string, mimeType: string): Blob => {
-    const byteCharacters = atob(base64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], { type: mimeType });
-};
-
-const ImageView: React.FC<ImageViewProps> = ({ state, setState }) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+const ImageView: React.FC<ImageViewProps> = ({ state, setState, setViewContext }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [copiedImageId, setCopiedImageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    setViewContext(`Image view in ${state.mode} mode. Prompt: ${state.prompt}`);
+  }, [state.mode, state.prompt, setViewContext]);
 
   const handleGenerate = async () => {
     if (!state.prompt.trim()) return;
-    setIsLoading(true);
-    setError('');
+    setState(s => ({...s, isGenerating: true, error: null}));
     try {
-      let newImages: GeneratedImage[] = [];
-
-      if (state.sourceImage) {
-        const resultBase64 = await editImage(state.prompt, state.sourceImage);
-        newImages = [{
-          id: `img_${Date.now()}_0`,
-          base64: resultBase64,
-          prompt: `(Edit) ${state.prompt}`,
-        }];
-      } else {
-        const response = await generateImages(state.prompt, state.numberOfImages, state.aspectRatio);
-        newImages = response.generatedImages.map((img, index) => ({
-          id: `img_${Date.now()}_${index}`,
-          base64: img.image.imageBytes,
-          prompt: state.prompt,
-        }));
-      }
-
-      setState(s => ({ ...s, images: [...newImages, ...s.images] }));
+      const base64Images = await generateImage(state.prompt, state.numberOfImages, state.aspectRatio);
+      const newImages = base64Images.map(b64 => ({ src: `data:image/png;base64,${b64}`, prompt: state.prompt }));
+      setState(s => ({...s, images: [...newImages, ...s.images]}));
     } catch (err: any) {
-      setError(err.message || 'An error occurred while generating images.');
+      setState(s => ({...s, error: err.message || 'Failed to generate image.'}));
     } finally {
-      setIsLoading(false);
+      setState(s => ({...s, isGenerating: false}));
     }
   };
 
-  const handleDownload = (base64: string, prompt: string) => {
+  const handleEdit = async () => {
+    if (!state.prompt.trim() || !state.sourceImage) return;
+    setState(s => ({...s, isGenerating: true, error: null}));
+    try {
+        const base64Image = await editImage(state.prompt, state.sourceImage);
+        const newImage = { src: `data:image/png;base64,${base64Image}`, prompt: state.prompt };
+        setState(s => ({...s, images: [newImage, ...s.images], sourceImage: null}));
+    } catch (err: any) {
+        setState(s => ({...s, error: err.message || 'Failed to edit image.'}));
+    } finally {
+        setState(s => ({...s, isGenerating: false}));
+    }
+  };
+
+  const handleAnalyze = async () => {
+      if (!state.prompt.trim() || !state.sourceImage) return;
+      setState(s => ({...s, isGenerating: true, error: null, analysisResult: null }));
+      try {
+          const result = await analyzeImage(state.prompt, state.sourceImage);
+          setState(s => ({...s, analysisResult: result}));
+      } catch (err: any) {
+          setState(s => ({...s, error: err.message || 'Failed to analyze image.'}));
+      } finally {
+          setState(s => ({...s, isGenerating: false}));
+      }
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const base64Data = await fileToBase64(file);
+    setState(s => ({...s, sourceImage: { data: base64Data, mimeType: file.type }, error: null, analysisResult: null }));
+  };
+  
+  const handleAction = () => {
+      switch (state.mode) {
+          case 'generate': handleGenerate(); break;
+          case 'edit': handleEdit(); break;
+          case 'analyze': handleAnalyze(); break;
+      }
+  };
+
+  const downloadImage = (src: string) => {
     const link = document.createElement('a');
-    link.href = `data:image/jpeg;base64,${base64}`;
-    link.download = `${prompt.slice(0, 20).replace(/\s/g, '_')}.jpeg`;
+    link.href = src;
+    link.download = `generated-image-${Date.now()}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
   
-  const handleCopyImage = async (base64: string, id: string) => {
-    try {
-        const blob = base64ToBlob(base64, 'image/jpeg');
-        await navigator.clipboard.write([ new ClipboardItem({ 'image/jpeg': blob }) ]);
-        setCopiedImageId(id);
-        setTimeout(() => setCopiedImageId(null), 2000);
-    } catch (err) {
-        console.error('Failed to copy image:', err);
-        alert('Failed to copy image to clipboard.');
-    }
-  };
-
-  const handleShareImage = async (base64: string, prompt: string) => {
-      try {
-          const blob = base64ToBlob(base64, 'image/jpeg');
-          const file = new File([blob], `${prompt.slice(0, 20)}.jpeg`, { type: 'image/jpeg' });
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-              await navigator.share({
-                  files: [file],
-                  title: prompt,
-                  text: `Image generated with IOAI Studio: ${prompt}`,
-              });
-          } else {
-              alert('Image sharing is not supported on this browser.');
-          }
-      } catch (err) {
-          console.error('Failed to share image:', err);
-      }
-  };
-
-  const applyStyle = (style: string) => {
-    const newPrompt = state.prompt.trim().length > 0
-      ? `${state.prompt.trim()}, ${style.toLowerCase()}`
-      : `${style}`;
-    setState(s => ({...s, prompt: newPrompt}));
-  }
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-        const base64Data = await fileToBase64(file);
-        setState(s => ({ ...s, sourceImage: { base64: base64Data, mimeType: file.type } }));
-    }
-    if (event.target) event.target.value = '';
+  const setMode = (mode: ImageViewState['mode']) => {
+      setState(s => ({...s, mode, error: null, analysisResult: null, sourceImage: mode === 'generate' ? null : s.sourceImage}));
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-800 text-white">
-      <header className="flex-shrink-0 p-4 border-b border-slate-700 flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Image Studio</h1>
-        <button
-            onClick={() => setIsModalOpen(true)}
-            disabled={state.images.length === 0}
-            className="px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 transition-colors flex items-center gap-2 disabled:opacity-50"
-        >
-            <SaveIcon />
-            Save Session
-        </button>
-      </header>
-      
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Control Panel */}
-        <div className="w-full md:w-80 lg:w-96 p-4 border-b md:border-b-0 md:border-r border-slate-700 flex flex-col gap-6">
-            <h2 className="text-lg font-medium">Image Settings</h2>
-            <div className={`${state.sourceImage ? 'opacity-50' : ''}`}>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Aspect Ratio</label>
-              <select 
-                value={state.aspectRatio}
-                onChange={(e) => setState(s => ({...s, aspectRatio: e.target.value as ImageViewState['aspectRatio']}))}
-                className="w-full bg-slate-700 text-white rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                disabled={!!state.sourceImage}
-              >
-                <option value="1:1">1:1 (Square)</option>
-                <option value="16:9">16:9 (Landscape)</option>
-                <option value="9:16">9:16 (Portrait)</option>
-                <option value="4:3">4:3</option>
-                <option value="3:4">3:4</option>
-              </select>
-            </div>
-             <div className={`${state.sourceImage ? 'opacity-50' : ''}`}>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Number of Images</label>
-               <input
-                 type="number"
-                 min="1"
-                 max="4"
-                 value={state.sourceImage ? 1 : state.numberOfImages}
-                 onChange={(e) => setState(s => ({...s, numberOfImages: parseInt(e.target.value)}))}
-                 className="w-full bg-slate-700 text-white rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                 disabled={!!state.sourceImage}
-               />
-            </div>
+    <div className="flex h-full bg-slate-800 text-white">
+      <div className="w-full md:w-1/3 lg:w-1/4 p-4 border-r border-slate-700 flex flex-col">
+        <h2 className="text-xl font-bold mb-4">Image Studio</h2>
+        <div className="flex bg-slate-900 p-1 rounded-lg mb-4">
+            <button onClick={() => setMode('generate')} className={`flex-1 p-2 text-sm rounded-md flex items-center justify-center gap-2 ${state.mode === 'generate' ? 'bg-indigo-600' : 'hover:bg-slate-700'}`}><SparkleIcon /> Generate</button>
+            <button onClick={() => setMode('edit')} className={`flex-1 p-2 text-sm rounded-md flex items-center justify-center gap-2 ${state.mode === 'edit' ? 'bg-indigo-600' : 'hover:bg-slate-700'}`}><PenIcon /> Edit</button>
+            <button onClick={() => setMode('analyze')} className={`flex-1 p-2 text-sm rounded-md flex items-center justify-center gap-2 ${state.mode === 'analyze' ? 'bg-indigo-600' : 'hover:bg-slate-700'}`}><BrainCircuitIcon /> Analyze</button>
         </div>
-
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-700">
-             <div className="flex flex-wrap gap-2 mb-3">
-                {stylePresets.map(style => (
-                    <button
-                        key={style}
-                        onClick={() => applyStyle(style)}
-                        className="px-2.5 py-1 text-xs font-medium bg-slate-700 text-slate-300 rounded-full hover:bg-slate-600 hover:text-white transition-colors"
-                    >
-                        {style}
-                    </button>
-                ))}
-             </div>
-             <div className="relative">
-                <textarea
-                  value={state.prompt}
-                  onChange={(e) => setState(s => ({ ...s, prompt: e.target.value }))}
-                  placeholder={state.sourceImage ? "Describe how you want to change the image..." : "Describe the image you want to create..."}
-                  className="w-full h-24 p-3 pr-12 bg-slate-900 rounded-md resize-none focus:outline-none placeholder-slate-500 text-slate-300"
-                />
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*"/>
-                <button onClick={() => fileInputRef.current?.click()} className="absolute top-1/2 right-3 -translate-y-1/2 text-slate-400 hover:text-white" title="Upload an image to edit">
-                    <PaperclipIcon />
-                </button>
-             </div>
-             {state.sourceImage && (
-                <div className="mt-3 relative w-20 h-20">
-                    <img src={`data:${state.sourceImage.mimeType};base64,${state.sourceImage.base64}`} alt="Source for edit" className="w-full h-full object-cover rounded-md" />
-                    <button onClick={() => setState(s => ({ ...s, sourceImage: null}))} className="absolute -top-1.5 -right-1.5 p-0.5 bg-slate-600 text-white rounded-full hover:bg-red-500">
-                        <CloseIcon className="w-4 h-4" />
-                    </button>
-                </div>
-             )}
-          </div>
-          <div className="flex-1 p-4 overflow-y-auto">
-            {isLoading && state.images.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                    <Loader />
-                    <p className="mt-4">Generating your masterpiece...</p>
-                </div>
-            )}
-            {error && <p className="text-red-400 text-center">{error}</p>}
-            
-            {state.images.length === 0 && !isLoading && !error && (
-                <div className="flex flex-col items-center justify-center h-full text-slate-500 text-center">
-                    <UploadIcon />
-                    <h3 className="text-lg font-semibold mt-2">Let's create something amazing!</h3>
-                    <p className="max-w-xs">Enter a description above and click "Generate" to bring your ideas to life.</p>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {state.images.map((image) => (
-                <div key={image.id} className="group relative rounded-lg overflow-hidden border-2 border-slate-700 aspect-square">
-                  <img src={`data:image/jpeg;base64,${image.base64}`} alt={image.prompt} className="w-full h-full object-cover"/>
-                  <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                    <p className="text-xs text-slate-200 line-clamp-3">{image.prompt}</p>
-                    <div className="self-end flex items-center gap-1.5">
-                        <button onClick={() => handleShareImage(image.base64, image.prompt)} className="p-2 rounded-full bg-slate-600/50 hover:bg-indigo-600" title="Share"><ShareIcon/></button>
-                        <button onClick={() => handleCopyImage(image.base64, image.id)} className="p-2 rounded-full bg-slate-600/50 hover:bg-indigo-600" title="Copy Image">
-                            <CopyIcon className={copiedImageId === image.id ? 'text-green-400' : ''}/>
-                        </button>
-                        <button onClick={() => handleDownload(image.base64, image.prompt)} className="p-2 rounded-full bg-slate-600/50 hover:bg-indigo-600" title="Download"><DownloadIcon/></button>
+        
+        { (state.mode === 'edit' || state.mode === 'analyze') && (
+            <div className="mb-4">
+                { !state.sourceImage ? (
+                    <div onClick={() => fileInputRef.current?.click()} className="cursor-pointer border-2 border-dashed border-slate-600 rounded-lg p-8 text-center hover:bg-slate-900 transition-colors">
+                        <UploadIcon />
+                        <p className="text-sm">Click to upload image</p>
                     </div>
-                  </div>
-                </div>
-              ))}
+                ) : (
+                    <div className="relative">
+                        <img src={`data:${state.sourceImage.mimeType};base64,${state.sourceImage.data}`} alt="Source for edit" className="rounded-lg w-full" />
+                        <button onClick={() => setState(s => ({...s, sourceImage: null}))} className="absolute top-2 right-2 bg-black/50 p-1 rounded-full text-white hover:bg-red-500"><TrashIcon /></button>
+                    </div>
+                )}
+                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
             </div>
-          </div>
-        </div>
-      </div>
-       <div className="p-4 border-t border-slate-700 flex-shrink-0 flex justify-center">
-            <button
-              onClick={handleGenerate}
-              disabled={isLoading || !state.prompt.trim()}
-              className="w-full md:w-auto md:px-12 py-2.5 text-base font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:bg-indigo-800 disabled:cursor-not-allowed"
+        )}
+
+        <label className="text-sm mb-1">Prompt</label>
+        <textarea
+            value={state.prompt}
+            onChange={e => setState(s => ({...s, prompt: e.target.value}))}
+            rows={5}
+            placeholder={
+                state.mode === 'generate' ? 'A futuristic cityscape at sunset...' :
+                state.mode === 'edit' ? 'Add a flying car in the sky...' :
+                'What is in this image?'
+            }
+            className="w-full p-2 bg-slate-900 rounded-md resize-none border border-slate-700"
+        />
+        
+        {state.mode === 'generate' && (
+            <div className="mt-4">
+                <label className="text-sm mb-1">Number of Images</label>
+                <input type="number" min="1" max="4" value={state.numberOfImages} onChange={e => setState(s => ({...s, numberOfImages: parseInt(e.target.value)}))} className="w-full p-2 bg-slate-900 rounded-md border border-slate-700" />
+                <label className="text-sm mt-2 mb-1">Aspect Ratio</label>
+                <select value={state.aspectRatio} onChange={e => setState(s => ({...s, aspectRatio: e.target.value as any}))} className="w-full p-2 bg-slate-900 rounded-md border border-slate-700">
+                    <option value="1:1">Square (1:1)</option>
+                    <option value="16:9">Landscape (16:9)</option>
+                    <option value="9:16">Portrait (9:16)</option>
+                    <option value="4:3">Standard (4:3)</option>
+                    <option value="3:4">Tall (3:4)</option>
+                </select>
+            </div>
+        )}
+        
+        <div className="mt-auto pt-4">
+             <button
+                onClick={handleAction}
+                disabled={state.isGenerating || !state.prompt.trim() || ((state.mode === 'edit' || state.mode === 'analyze') && !state.sourceImage)}
+                className="w-full px-6 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 font-semibold flex items-center justify-center disabled:bg-indigo-900 disabled:cursor-not-allowed"
             >
-              {isLoading ? <Loader /> : <><RefreshIcon /> Generate</>}
+                {state.isGenerating ? <Loader /> : 'Run'}
             </button>
         </div>
-      <SaveToProjectModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        assetType="image"
-        assetContent={state}
-        assetNameSuggestion={`Image Session - ${state.prompt.substring(0, 30)}...`}
-      />
+      </div>
+      
+      <div className="flex-1 p-4 overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Results</h2>
+             <button onClick={() => setIsModalOpen(true)} disabled={state.images.length === 0 && !state.analysisResult} className="px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 flex items-center gap-2 disabled:opacity-50">
+                <SaveIcon /> Save
+            </button>
+        </div>
+        {state.error && <p className="text-red-400 p-4 bg-red-900/50 rounded-md">{state.error}</p>}
+        {state.analysisResult && (
+            <div className="bg-slate-900 p-4 rounded-lg mb-4 prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: state.analysisResult }}></div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {state.images.map((img, index) => (
+                <div key={index} className="relative group aspect-square">
+                    <img src={img.src} alt={img.prompt} className="rounded-lg w-full h-full object-cover" />
+                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                        <button onClick={() => downloadImage(img.src)} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30"><DownloadIcon /></button>
+                        <button onClick={() => setState(s => ({...s, images: s.images.filter((_, i) => i !== index)}))} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30"><TrashIcon /></button>
+                    </div>
+                </div>
+            ))}
+        </div>
+      </div>
+       <SaveToProjectModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          assetType="image"
+          assetContent={state}
+          assetNameSuggestion={`Image Session - ${new Date().toLocaleDateString()}`}
+        />
     </div>
   );
 };
