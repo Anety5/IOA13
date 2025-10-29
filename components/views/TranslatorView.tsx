@@ -1,233 +1,206 @@
-import React, { useState, useRef } from 'react';
-import { translateText, generateSpeech } from '../../services/geminiService';
-import { decode, decodeAudioData } from '../../utils/audio';
+import React, { useState, useEffect, useRef } from 'react';
+import { TranslatorViewState } from '../../utils/projects';
+import { translateText, textToSpeech } from '../../services/geminiService';
+import { playAudio } from '../../utils/audio';
 import Loader from '../Loader';
-import { TranslatorIcon } from '../icons/TranslatorIcon';
-import { PlayIcon } from '../icons/PlayIcon';
-import { PauseIcon } from '../icons/PauseIcon';
-import { StopIcon } from '../icons/StopIcon';
-import { CopyIcon } from '../icons/CopyIcon';
 import { SaveIcon } from '../icons/SaveIcon';
 import SaveToProjectModal from '../SaveToProjectModal';
-import { TranslatorAssetContent } from '../../utils/projects';
-import { TrashIcon } from '../icons/TrashIcon';
-
-export interface TranslatorViewState {
-    sourceText: string;
-    translatedText: string;
-    sourceLang: string;
-    targetLang: string;
-}
+import { CopyIcon } from '../icons/CopyIcon';
+import { SpeakerIcon } from '../icons/SpeakerIcon';
 
 interface TranslatorViewProps {
-    state: TranslatorViewState;
-    setState: React.Dispatch<React.SetStateAction<TranslatorViewState>>;
+  state: TranslatorViewState;
+  setState: React.Dispatch<React.SetStateAction<TranslatorViewState>>;
 }
 
 const languages = {
-  'auto': 'Auto-detect', 'en': 'English', 'es': 'Spanish', 'fr': 'French',
-  'de': 'German', 'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian',
-  'ja': 'Japanese', 'ko': 'Korean', 'zh': 'Chinese (Simplified)'
+    'auto': 'Auto-detect', 'af': 'Afrikaans', 'sq': 'Albanian', 'am': 'Amharic', 'ar': 'Arabic', 'hy': 'Armenian',
+    'az': 'Azerbaijani', 'eu': 'Basque', 'be': 'Belarusian', 'bn': 'Bengali', 'bs': 'Bosnian',
+    'bg': 'Bulgarian', 'ca': 'Catalan', 'ceb': 'Cebuano', 'ny': 'Chichewa', 'zh': 'Chinese (Simplified)',
+    'zh-TW': 'Chinese (Traditional)', 'co': 'Corsican', 'hr': 'Croatian', 'cs': 'Czech', 'da': 'Danish',
+    'nl': 'Dutch', 'en': 'English', 'eo': 'Esperanto', 'et': 'Estonian', 'tl': 'Filipino', 'fi': 'Finnish',
+    'fr': 'French', 'fy': 'Frisian', 'gl': 'Galician', 'ka': 'Georgian', 'de': 'German', 'el': 'Greek',
+    'gu': 'Gujarati', 'ht': 'Haitian Creole', 'ha': 'Hausa', 'haw': 'Hawaiian', 'iw': 'Hebrew',
+    'hi': 'Hindi', 'hmn': 'Hmong', 'hu': 'Hungarian', 'is': 'Icelandic', 'ig': 'Igbo', 'id': 'Indonesian',
+    'ga': 'Irish', 'it': 'Italian', 'ja': 'Japanese', 'jw': 'Javanese', 'kn': 'Kannada', 'kk': 'Kazakh',
+    'km': 'Khmer', 'ko': 'Korean', 'ku': 'Kurdish (Kurmanji)', 'ky': 'Kyrgyz', 'lo': 'Lao', 'la': 'Latin',
+    'lv': 'Latvian', 'lt': 'Lithuanian', 'lb': 'Luxembourgish', 'mk': 'Macedonian', 'mg': 'Malagasy',
+    'ms': 'Malay', 'ml': 'Malayalam', 'mt': 'Maltese', 'mi': 'Maori', 'mr': 'Marathi', 'mn': 'Mongolian',
+    'my': 'Myanmar (Burmese)', 'ne': 'Nepali', 'no': 'Norwegian', 'ps': 'Pashto', 'fa': 'Persian',
+    'pl': 'Polish', 'pt': 'Portuguese', 'pa': 'Punjabi', 'ro': 'Romanian', 'ru': 'Russian', 'sm': 'Samoan',
+    'gd': 'Scots Gaelic', 'sr': 'Serbian', 'st': 'Sesotho', 'sn': 'Shona', 'sd': 'Sindhi', 'si': 'Sinhala',
+    'sk': 'Slovak', 'sl': 'Slovenian', 'so': 'Somali', 'es': 'Spanish', 'su': 'Sundanese', 'sw': 'Swahili',
+    'sv': 'Swedish', 'tg': 'Tajik', 'ta': 'Tamil', 'te': 'Telugu', 'th': 'Thai', 'tr': 'Turkish',
+    'uk': 'Ukrainian', 'ur': 'Urdu', 'uz': 'Uzbek', 'vi': 'Vietnamese', 'cy': 'Welsh', 'xh': 'Xhosa',
+    'yi': 'Yiddish', 'yo': 'Yoruba', 'zu': 'Zulu'
 };
 
-type AudioStatus = 'idle' | 'loading' | 'playing' | 'paused';
-
 const TranslatorView: React.FC<TranslatorViewProps> = ({ state, setState }) => {
-    const { sourceText, translatedText, sourceLang, targetLang } = state;
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-    // --- Advanced Audio State ---
-    const [sourceAudio, setSourceAudio] = useState<{ status: AudioStatus }>({ status: 'idle' });
-    const [targetAudio, setTargetAudio] = useState<{ status: AudioStatus }>({ status: 'idle' });
+  const handleTranslate = async () => {
+    if (!state.sourceText.trim()) return;
+    setIsLoading(true);
+    try {
+      const result = await translateText(state.sourceText, state.sourceLang, state.targetLang);
+      setState(prevState => ({ ...prevState, translatedText: result }));
+    } catch (error) {
+      console.error(error);
+      setState(prevState => ({ ...prevState, translatedText: 'An error occurred during translation.' }));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Debounce translation
+  useEffect(() => {
+    const handler = setTimeout(() => {
+        if (state.sourceText.trim()) {
+            handleTranslate();
+        } else {
+             setState(s => ({...s, translatedText: ''}));
+        }
+    }, 500); // 500ms delay
+
+    return () => {
+      clearTimeout(handler);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.sourceText, state.sourceLang, state.targetLang]);
+  
+  const handleCopy = () => {
+    navigator.clipboard.writeText(state.translatedText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleReadAloud = async () => {
+    if (audioSourceRef.current) {
+        audioSourceRef.current.stop();
+        audioSourceRef.current = null;
+    }
+
+    if (isSpeaking) {
+        setIsSpeaking(false);
+        return;
+    }
     
-    const sourceAudioContextRef = useRef<AudioContext | null>(null);
-    const sourceAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    const targetAudioContextRef = useRef<AudioContext | null>(null);
-    const targetAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-
-    const createAudioHandler = (
-      type: 'source' | 'target',
-      stateSetter: React.Dispatch<React.SetStateAction<{ status: AudioStatus }>>,
-      contextRef: React.MutableRefObject<AudioContext | null>,
-      sourceRef: React.MutableRefObject<AudioBufferSourceNode | null>
-    ) => {
-      const cleanup = () => {
-        if (sourceRef.current) {
-          sourceRef.current.onended = null;
-          sourceRef.current.disconnect();
-          sourceRef.current = null;
-        }
-        if (contextRef.current) {
-          contextRef.current.close().catch(console.error);
-          contextRef.current = null;
-        }
-        stateSetter({ status: 'idle' });
-      };
-
-      const stop = () => {
-        if (sourceRef.current) {
-            try { sourceRef.current.stop(); } catch (e) {}
-        }
-        cleanup();
-      };
-      
-      const play = async (text: string) => {
-        const otherType = type === 'source' ? 'target' : 'source';
-        // Stop the other audio player if it's running
-        if (otherType === 'source') handleSourceStop(); else handleTargetStop();
-
-        if (sourceAudio.status === 'playing' && contextRef.current) {
-            await contextRef.current.suspend();
-            stateSetter({ status: 'paused' });
-            return;
-        }
-        if (sourceAudio.status === 'paused' && contextRef.current) {
-            await contextRef.current.resume();
-            stateSetter({ status: 'playing' });
-            return;
-        }
-
-        stop();
-        stateSetter({ status: 'loading' });
-        try {
-            const audioB64 = await generateSpeech(text);
-            contextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const audioBuffer = await decodeAudioData(decode(audioB64), contextRef.current, 24000, 1);
-            sourceRef.current = contextRef.current.createBufferSource();
-            sourceRef.current.buffer = audioBuffer;
-            sourceRef.current.connect(contextRef.current.destination);
-            sourceRef.current.onended = cleanup;
-            sourceRef.current.start();
-            stateSetter({ status: 'playing' });
-        } catch (e) {
-            setError("Speech generation failed.");
-            cleanup();
-        }
-      };
-      return { play, stop };
-    };
+    if (!state.translatedText) return;
     
-    const { play: handleSourcePlay, stop: handleSourceStop } = createAudioHandler('source', setSourceAudio, sourceAudioContextRef, sourceAudioSourceRef);
-    const { play: handleTargetPlay, stop: handleTargetStop } = createAudioHandler('target', setTargetAudio, targetAudioContextRef, targetAudioSourceRef);
-
-    const stopAllAudio = () => {
-      handleSourceStop();
-      handleTargetStop();
-    };
-
-    const handleTranslate = async () => {
-        if (!sourceText.trim()) return;
-        setIsLoading(true);
-        setError(null);
-        stopAllAudio();
-        setState(s => ({ ...s, translatedText: '' }));
-
-        try {
-            const result = await translateText(sourceText, languages[sourceLang as keyof typeof languages], languages[targetLang as keyof typeof languages]);
-            setState(s => ({ ...s, translatedText: result }));
-        } catch (e) {
-            console.error(e);
-            setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    setIsSpeaking(true);
     
-    const handleCopyToClipboard = (text: string) => {
-        if (text) navigator.clipboard.writeText(text);
-    };
+    try {
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        const audioContent = await textToSpeech(state.translatedText);
+        audioSourceRef.current = await playAudio(audioContent, audioContextRef.current, () => {
+            setIsSpeaking(false);
+            audioSourceRef.current = null;
+        });
+    } catch (err) {
+        console.error("Speech generation failed", err);
+        setIsSpeaking(false);
+    }
+  };
 
-    const renderAudioControls = (
-        type: 'source' | 'target',
-        text: string,
-        state: { status: AudioStatus },
-        playHandler: (text: string) => void,
-        stopHandler: () => void
-    ) => (
-        <div className="flex items-center gap-1">
-            <button onClick={() => playHandler(text)} disabled={!text || state.status === 'loading'} className="p-1 text-gray-300 hover:text-white disabled:text-gray-600" title={state.status === 'playing' ? 'Pause' : 'Play'}>
-                {state.status === 'loading' && <Loader />}
-                {state.status === 'playing' && <PauseIcon />}
-                {(state.status === 'idle' || state.status === 'paused') && <PlayIcon />}
-            </button>
-            <button onClick={stopHandler} disabled={state.status === 'idle' || state.status === 'loading'} className="p-1 text-gray-300 hover:text-white disabled:text-gray-600" title="Stop">
-                <StopIcon />
-            </button>
-        </div>
-    );
+  return (
+    <div className="flex flex-col h-full bg-slate-800 text-white">
+      <header className="flex-shrink-0 p-4 border-b border-slate-700 flex justify-between items-center">
+        <h1 className="text-xl font-semibold">Translator</h1>
+         <button 
+            onClick={() => setIsModalOpen(true)}
+            className="px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+            disabled={!state.translatedText}
+        >
+            <SaveIcon />
+            Save
+        </button>
+      </header>
 
-    return (
-        <>
-        <div className="flex flex-col h-full">
-            <div className="p-3 sm:p-4 border-b border-slate-700 bg-slate-800 rounded-t-lg flex items-center justify-between">
-                <h2 className="text-xl font-semibold flex items-center gap-2"><TranslatorIcon /> AI Translator</h2>
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
+        {/* Source Text */}
+        <div className="flex flex-col">
+            <div className="p-3 border-b border-slate-700 flex-shrink-0">
+                <select 
+                    value={state.sourceLang}
+                    onChange={e => setState(s => ({...s, sourceLang: e.target.value}))}
+                    className="bg-slate-700 text-white rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                    {Object.entries(languages).map(([code, name]) => (
+                        <option key={code} value={code}>{name}</option>
+                    ))}
+                </select>
             </div>
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-700">
-                {/* Source */}
-                <div className="bg-slate-800 p-3 sm:p-4 flex flex-col">
-                    <select value={sourceLang} onChange={e => setState(s => ({...s, sourceLang: e.target.value}))} className="bg-slate-700 text-white text-sm rounded-md p-2 mb-2 self-start border-0 focus:ring-2 focus:ring-indigo-500">
-                        {Object.entries(languages).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                    </select>
-                    <textarea 
-                        value={sourceText} 
-                        onChange={e => setState(s => ({...s, sourceText: e.target.value}))}
-                        placeholder="Enter text..."
-                        className="w-full flex-1 bg-slate-900 text-gray-200 p-3 rounded-md border border-slate-600 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <div className="pt-2 flex items-center justify-end gap-3">
-                         <button onClick={() => setState(s => ({...s, sourceText: ''}))} disabled={!sourceText} className="text-gray-300 hover:text-white disabled:text-gray-600"><TrashIcon /></button>
-                         <button onClick={() => handleCopyToClipboard(sourceText)} disabled={!sourceText} className="text-gray-300 hover:text-white disabled:text-gray-600"><CopyIcon /></button>
-                         {renderAudioControls('source', sourceText, sourceAudio, handleSourcePlay, handleSourceStop)}
-                    </div>
-                </div>
-
-                {/* Target */}
-                <div className="bg-slate-800 p-3 sm:p-4 flex flex-col">
-                    <select value={targetLang} onChange={e => setState(s => ({...s, targetLang: e.target.value}))} className="bg-slate-700 text-white text-sm rounded-md p-2 mb-2 self-start border-0 focus:ring-2 focus:ring-indigo-500">
-                        {Object.entries(languages).filter(([k]) => k !== 'auto').map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                    </select>
-                     <div className="w-full flex-1 bg-slate-900 text-gray-200 p-3 rounded-md border border-slate-600 overflow-y-auto">
-                        {isLoading ? (
-                            <div className="flex items-center justify-center h-full">
-                                <Loader />
-                            </div>
-                        ) : error ? (
-                            <div className="text-red-400">{error}</div>
-                        ) : (
-                            <p className="whitespace-pre-wrap">{translatedText}</p>
-                        )}
-                    </div>
-                     <div className="pt-2 flex items-center justify-end gap-3">
-                         <button onClick={() => setIsSaveModalOpen(true)} disabled={!translatedText} className="text-gray-300 hover:text-white disabled:text-gray-600"><SaveIcon /></button>
-                         <button onClick={() => handleCopyToClipboard(translatedText)} disabled={!translatedText} className="text-gray-300 hover:text-white disabled:text-gray-600"><CopyIcon /></button>
-                         {renderAudioControls('target', translatedText, targetAudio, handleTargetPlay, handleTargetStop)}
-                    </div>
-                </div>
-            </div>
-             <div className="p-3 sm:p-4 border-t border-slate-700 bg-slate-800 rounded-b-lg">
-                <button onClick={handleTranslate} disabled={isLoading || !sourceText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 disabled:bg-indigo-900/50 flex items-center justify-center gap-2">
-                    {isLoading ? <><Loader /> Translating...</> : 'Translate'}
-                </button>
-            </div>
-        </div>
-        {isSaveModalOpen && (
-            <SaveToProjectModal
-                isOpen={isSaveModalOpen}
-                onClose={() => setIsSaveModalOpen(false)}
-                assetType="translator"
-                assetContent={{
-                    sourceText,
-                    translatedText,
-                    sourceLang,
-                    targetLang
-                } as TranslatorAssetContent}
-                assetNameSuggestion={`Translation - ${sourceText.substring(0, 30)}...`}
+            <textarea
+                value={state.sourceText}
+                onChange={(e) => setState(s => ({ ...s, sourceText: e.target.value }))}
+                placeholder="Enter text to translate..."
+                className="w-full h-full p-4 bg-slate-900 resize-none focus:outline-none placeholder-slate-500 text-slate-300"
             />
-        )}
-        </>
-    );
+        </div>
+        
+        {/* Translated Text */}
+        <div className="flex flex-col border-l border-slate-700">
+            <div className="p-3 border-b border-slate-700 flex-shrink-0 flex justify-between items-center">
+                <select 
+                    value={state.targetLang}
+                    onChange={e => setState(s => ({...s, targetLang: e.target.value}))}
+                    className="bg-slate-700 text-white rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                     {Object.entries(languages).filter(([code]) => code !== 'auto').map(([code, name]) => (
+                        <option key={code} value={code}>{name}</option>
+                    ))}
+                </select>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleReadAloud}
+                        disabled={!state.translatedText || isLoading}
+                        className="p-1.5 rounded-full hover:bg-slate-700 disabled:opacity-50"
+                        title="Read Aloud"
+                    >
+                       <SpeakerIcon isSpeaking={isSpeaking}/>
+                    </button>
+                    <button
+                        onClick={handleCopy}
+                        disabled={!state.translatedText}
+                        className="p-1.5 rounded-full hover:bg-slate-700 disabled:opacity-50"
+                        title="Copy"
+                    >
+                       <CopyIcon className={copied ? 'text-green-400' : 'text-slate-400'} />
+                    </button>
+                </div>
+            </div>
+            <div className="w-full h-full p-4 bg-slate-900 overflow-y-auto text-slate-300 relative">
+                 {isLoading && (
+                    <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
+                        <Loader />
+                    </div>
+                 )}
+                 {state.translatedText ? (
+                    <pre className="whitespace-pre-wrap font-sans text-sm">{state.translatedText}</pre>
+                 ) : (
+                    <div className="flex items-center justify-center h-full text-slate-500">
+                        Translation will appear here.
+                    </div>
+                 )}
+            </div>
+        </div>
+      </div>
+      <SaveToProjectModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        assetType="translator"
+        assetContent={state}
+        assetNameSuggestion={`Translation - ${state.sourceText.substring(0, 30)}...`}
+      />
+    </div>
+  );
 };
 
 export default TranslatorView;

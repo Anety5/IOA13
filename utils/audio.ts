@@ -36,7 +36,7 @@ export async function decodeAudioData(
   return buffer;
 }
 
-export async function playAudio(base64Audio: string, audioContext: AudioContext, onEnded: () => void) {
+export async function playAudio(base64Audio: string, audioContext: AudioContext, onEnded: () => void): Promise<AudioBufferSourceNode> {
     try {
         const audioData = decode(base64Audio);
         const audioBuffer = await decodeAudioData(audioData, audioContext, 24000, 1);
@@ -45,8 +45,10 @@ export async function playAudio(base64Audio: string, audioContext: AudioContext,
         source.connect(audioContext.destination);
         source.onended = onEnded;
         source.start();
+        return source;
     } catch (error) {
         console.error("Failed to play audio:", error);
         onEnded(); // Ensure state is reset even on error
+        throw error;
     }
 }

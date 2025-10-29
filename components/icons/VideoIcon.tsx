@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-export const LiveIcon: React.FC = () => (
+export const VideoIcon: React.FC = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         width="24" 
@@ -13,8 +13,7 @@ export const LiveIcon: React.FC = () => (
         strokeLinecap="round" 
         strokeLinejoin="round"
     >
-        <path d="M17 10.5V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.5" />
-        <path d="m22 12-4-4-4 4" />
-        <path d="M18 12.5v-8" />
+        <path d="M22 8l-6 4 6 4V8Z" />
+        <rect x="2" y="6" width="14" height="12" rx="2" ry="2" />
     </svg>
 );

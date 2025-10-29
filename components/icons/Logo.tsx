@@ -23,7 +23,7 @@ export const Logo: React.FC = () => (
       </defs>
     </svg>
     <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-sky-400">
-      Idea Optimizer AI
+      IOAI Studio
     </h1>
   </div>
 );

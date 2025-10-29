@@ -1,160 +1,141 @@
-import { GenerateTextOptions } from "../services/geminiService";
-import { Part } from "@google/genai";
 
-// --- TYPE DEFINITIONS ---
-
-interface Message {
-  role: 'user' | 'model';
-  parts: Part[];
-  groundingChunks?: any[];
-}
-
-interface Transcript {
-  speaker: 'user' | 'model';
-  text: string;
-}
-
-export interface OptimizerAssetContent {
+// States for different views
+export interface OptimizerViewState {
   inputText: string;
-  outputText: string;
-  settings: {
-    task: 'optimize' | 'summarize' | 'proofread';
-    creativity: number;
-    complexity: number;
-    plagiarismGuard: boolean;
-    educationLevel: 'general' | 'k12' | 'university';
-  };
+  optimizedText: string;
+  audience: string;
+  goal: string;
+  formality: number;
+  complexity: number;
+  tone: string;
+  isProofread: boolean;
+  isPlagiarismCheck: boolean;
 }
 
-export interface ChatAssetContent {
-  messages: Message[];
-}
-
-export interface ImageAssetContent {
-  prompt: string;
-  b64: string;
-  mimeType: string;
-  imageStyle: string;
-}
-
-export interface TranslatorAssetContent {
+export interface TranslatorViewState {
   sourceText: string;
   translatedText: string;
   sourceLang: string;
   targetLang: string;
 }
 
-export interface AnalysisAssetContent {
+export interface GeneratedImage {
+    id: string;
+    base64: string;
     prompt: string;
-    sourceImageB64: string;
-    resultText: string;
 }
 
-export interface LiveConversationAssetContent {
-    transcripts: Transcript[];
+export interface ImageViewState {
+  prompt: string;
+  numberOfImages: number;
+  aspectRatio: "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+  images: GeneratedImage[];
 }
 
+export interface ProjectStudioResult {
+    type: 'summary' | 'modification';
+    content: string;
+    prompt?: string;
+}
 
-export type AssetContent = OptimizerAssetContent | ChatAssetContent | ImageAssetContent | TranslatorAssetContent | AnalysisAssetContent | LiveConversationAssetContent;
+export interface ProjectStudioViewState {
+    mainText: string;
+    attachments: { data: string; mimeType: string }[];
+    results: ProjectStudioResult[];
+}
+
+export type AssetContent = OptimizerViewState | TranslatorViewState | ImageViewState | ProjectStudioViewState;
 
 export interface Asset {
   id: string;
   name: string;
-  type: 'optimizer' | 'chat' | 'image' | 'translator' | 'analysis' | 'liveConversation';
-  createdAt: string;
+  type: 'optimizer' | 'translator' | 'image' | 'project_studio';
   content: AssetContent;
+  createdAt: string;
 }
 
 export interface Project {
   id: string;
   name: string;
-  createdAt: string;
   assets: Asset[];
 }
 
-const PROJECTS_KEY = 'ai_optimizer_projects';
+const PROJECTS_KEY = 'ai_studio_projects';
 
-// --- HELPER FUNCTIONS ---
+// --- Project Management ---
 
 export const getProjects = (): Project[] => {
   try {
-    const saved = localStorage.getItem(PROJECTS_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch (e) {
-    console.error("Failed to load projects from localStorage", e);
+    const projectsJson = localStorage.getItem(PROJECTS_KEY);
+    return projectsJson ? JSON.parse(projectsJson) : [];
+  } catch (error) {
+    console.error("Failed to parse projects from localStorage", error);
     return [];
   }
 };
 
-const saveProjects = (projects: Project[]): boolean => {
+const saveProjects = (projects: Project[]) => {
   try {
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
-    return true;
-  } catch (e) {
-    console.error("Failed to save projects to localStorage", e);
-    alert("Error: Could not save projects. Your browser's storage might be full.");
-    return false;
+  } catch (error) {
+    console.error("Failed to save projects to localStorage", error);
   }
 };
-
-// --- CORE API ---
 
 export const addProject = (name: string): Project | null => {
   if (!name.trim()) return null;
   const projects = getProjects();
   const newProject: Project = {
-    id: crypto.randomUUID(),
-    name,
-    createdAt: new Date().toISOString(),
+    id: `proj_${Date.now()}`,
+    name: name.trim(),
     assets: [],
   };
-  const success = saveProjects([...projects, newProject]);
-  return success ? newProject : null;
+  projects.push(newProject);
+  saveProjects(projects);
+  return newProject;
 };
 
-export const deleteProject = (projectId: string): Project[] => {
+export const deleteProject = (projectId: string): void => {
   let projects = getProjects();
   projects = projects.filter(p => p.id !== projectId);
   saveProjects(projects);
-  return projects;
 };
 
-export const updateProjectName = (projectId: string, newName: string): Project[] => {
-  if (!newName.trim()) return getProjects();
+// --- Asset Management ---
+
+export const addAssetToProject = (
+  projectId: string,
+  assetName: string,
+  assetType: Asset['type'],
+  assetContent: AssetContent
+): Project | null => {
   const projects = getProjects();
-  const project = projects.find(p => p.id === projectId);
-  if (project) {
-    project.name = newName;
-    saveProjects(projects);
+  const projectIndex = projects.findIndex(p => p.id === projectId);
+
+  if (projectIndex === -1) {
+    console.error(`Project with id ${projectId} not found.`);
+    return null;
   }
-  return projects;
-}
 
-export const addAssetToProject = (projectId: string, name: string, type: Asset['type'], content: AssetContent): Project | null => {
-    if (!name.trim()) return null;
-    const projects = getProjects();
-    const project = projects.find(p => p.id === projectId);
-    if (!project) return null;
+  const newAsset: Asset = {
+    id: `asset_${Date.now()}`,
+    name: assetName.trim(),
+    type: assetType,
+    content: assetContent,
+    createdAt: new Date().toISOString(),
+  };
 
-    const newAsset: Asset = {
-        id: crypto.randomUUID(),
-        name,
-        type,
-        createdAt: new Date().toISOString(),
-        content,
-    };
-
-    project.assets.unshift(newAsset);
-    const success = saveProjects(projects);
-    return success ? project : null;
+  projects[projectIndex].assets.push(newAsset);
+  saveProjects(projects);
+  return projects[projectIndex];
 };
 
-export const deleteAsset = (projectId: string, assetId: string): Project[] => {
+
+export const deleteAsset = (projectId: string, assetId: string): void => {
     const projects = getProjects();
     const project = projects.find(p => p.id === projectId);
-    if(project) {
+    if (project) {
         project.assets = project.assets.filter(a => a.id !== assetId);
         saveProjects(projects);
     }
-    return projects;
 };

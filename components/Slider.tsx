@@ -7,9 +7,11 @@ interface SliderProps {
   icon: React.ReactNode;
   valueLabel: string;
   description?: string;
+  startLabel?: string;
+  endLabel?: string;
 }
 
-const Slider: React.FC<SliderProps> = ({ label, value, onChange, icon, valueLabel, description }) => {
+const Slider: React.FC<SliderProps> = ({ label, value, onChange, icon, valueLabel, description, startLabel, endLabel }) => {
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
@@ -30,6 +32,12 @@ const Slider: React.FC<SliderProps> = ({ label, value, onChange, icon, valueLabe
           onChange={onChange}
           className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider-thumb"
         />
+        {(startLabel || endLabel) && (
+          <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
+            <span>{startLabel}</span>
+            <span>{endLabel}</span>
+          </div>
+        )}
         <style>{`
           .slider-thumb::-webkit-slider-thumb {
             -webkit-appearance: none;

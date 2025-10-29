@@ -1,8 +1,5 @@
 {
-  "name": "Copy for new repo ",
+  "name": "IOAI Studio",
   "description": "An all-purpose tool to brainstorm, optimize, summarize, and proofread ideas for any topic, from professional projects to academic research, with built-in educational settings and a plagiarism guard.",
-  "requestFramePermissions": [
-    "microphone",
-    "camera"
-  ]
+  "requestFramePermissions": []
 }

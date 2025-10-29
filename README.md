@@ -1,15 +1,16 @@
-# Idea Optimizer AI
+# IOAI Studio
 
-**Idea Optimizer AI** is a powerful, all-in-one web application that leverages the full suite of Google's Gemini AI models to provide a seamless and intuitive creative experience. As a fully client-side application with **no build process**, it runs directly in any modern web browser and can be deployed to any static hosting service in seconds.
+**IOAI Studio** is a powerful, all-in-one web application that leverages the full suite of Google's Gemini AI models to provide a seamless and intuitive creative experience. As a fully client-side application with **no build process**, it runs directly in any modern web browser and can be deployed to any static hosting service in seconds.
 
 This application serves not only as a powerful productivity tool but also as a live, interactive reference implementation for the Gemini API.
 
 ## Features
 
 -   **✍️ Optimizer**: Optimize, summarize, and proofread text with fine-grained controls for creativity and complexity.
+-   **💡 Project Studio**: A flexible workspace to upload documents and images, then summarize, modify, or brainstorm with AI assistance.
 -   **🌐 AI Translator**: Translate text between numerous languages with auto-detection and text-to-speech capabilities.
 -   **💬 AI Chat**: Engage in advanced conversations with options for deep reasoning ("Thinking Mode") and up-to-date information via Google Search grounding.
--   **🖼️ Image Studio**: Generate, edit, and analyze images using powerful text prompts.
+-   **🖼️ Image Studio**: Generate, edit, and analyze images using powerful text prompts and artistic style presets.
 -   **🎙️ Live Conversation**: Have a natural, real-time voice chat with the AI, including the ability to discuss uploaded images.
 -   **📁 My Projects**: Save and organize all your work—text, chats, images, and translations—directly in your browser's local storage.
 -   **👨‍💻 Live API Reference**: A unique educational feature. Click the **</>** icon in any view to see the exact, dynamic Gemini API code used for that specific task. This turns the app into a hybrid tool and a live learning resource.
@@ -28,7 +29,7 @@ This application serves not only as a powerful productivity tool but also as a l
 This application demonstrates a wide range of Gemini API capabilities:
 
 -   **Advanced Text Generation (`gemini-2.5-pro`)**: Used in the **Optimizer** for high-quality text manipulation with complex system instructions.
--   **Fast Text Generation (`gemini-2.5-flash`)**: Powers the **AI Translator** and standard **AI Chat** for quick and efficient responses.
+-   **Fast Text Generation (`gemini-2.5-flash`)**: Powers the **AI Translator**, **Project Studio**, and standard **AI Chat** for quick and efficient responses.
 -   **Function Calling (Tools)**: The **AI Chat**'s "Search" feature uses `googleSearch` as a tool to ground responses in real-time information from the web.
 -   **Image Generation (`imagen-4.0-generate-001`)**: The core of the **Image Studio**'s generation capability, creating high-quality images from text prompts.
 -   **Multi-modality (Image + Text)**: Used in the **Image Studio** to edit (`gemini-2.5-flash-image`) and analyze (`gemini-2.5-flash`) user-uploaded images.
