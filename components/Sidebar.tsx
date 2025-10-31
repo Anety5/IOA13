@@ -6,8 +6,9 @@ import { TranslatorIcon } from './icons/TranslatorIcon';
 import { VideoIcon } from './icons/VideoIcon';
 import { FolderIcon } from './icons/FolderIcon';
 import { CloseIcon } from './icons/CloseIcon';
+import { ProjectStudioIcon } from './icons/ProjectStudioIcon';
 
-export type ViewType = 'optimizer' | 'image' | 'translator' | 'video' | 'projects';
+export type ViewType = 'optimizer' | 'image' | 'translator' | 'video' | 'projects' | 'project_studio';
 
 
 interface SidebarProps {
@@ -33,6 +34,7 @@ const NavItem: React.FC<{ label: string; icon: React.ReactNode; isActive: boolea
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
     const navItems = [
         { view: 'optimizer' as ViewType, label: 'Content Optimizer', icon: <SparkleIcon /> },
+        { view: 'project_studio' as ViewType, label: 'Project Studio', icon: <ProjectStudioIcon /> },
         { view: 'translator' as ViewType, label: 'Translator', icon: <TranslatorIcon /> },
         { view: 'image' as ViewType, label: 'Image Studio', icon: <ImageIcon /> },
         { view: 'video' as ViewType, label: 'Video Generator', icon: <VideoIcon />, isNew: true },

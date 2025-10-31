@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Modality, Type } from "@google/genai";
 
 const getGenAI = () => {
   if (!process.env.API_KEY) {
@@ -75,24 +74,62 @@ export const processText = async (params: ProcessTextParams): Promise<GenerateCo
     });
 };
 
+export const generateFromProjectStudio = async (
+    prompt: string, 
+    attachments: { data: string; mimeType: string }[]
+): Promise<GenerateContentResponse> => {
+    const ai = getGenAI();
+    
+    const imageAttachments = attachments.filter(a => a.mimeType.startsWith('image/'));
+    
+    const imageParts = imageAttachments.map(att => ({
+        inlineData: {
+            data: att.data,
+            mimeType: att.mimeType,
+        },
+    }));
+
+    const parts = [{ text: prompt }, ...imageParts];
+
+    return ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: { parts },
+        config: {
+            systemInstruction: "You are a creative assistant. Follow the user's instructions precisely, using the provided text and images as context to generate a comprehensive response."
+        }
+    });
+};
+
 export const generateChatSuggestions = async (context: string): Promise<string[]> => {
     const ai = getGenAI();
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: `Based on the user's current context, suggest 3 concise and helpful actions they could take. Return them as a simple JSON array of strings. Context: "${context}"`,
+            contents: `Based on the user's current context, suggest 3 concise and helpful actions they could take. Context: "${context}"`,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        suggestions: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.STRING,
+                                description: "A concise and helpful action suggestion."
+                            }
+                        }
+                    }
+                }
+            }
         });
-        // FIX: Safely extract JSON from the response text
-        const jsonString = response.text.match(/\[(.*?)\]/s)?.[0];
-        if (jsonString) {
-            return JSON.parse(jsonString);
-        }
-        return [];
+        const json = JSON.parse(response.text);
+        return json.suggestions || [];
     } catch (e) {
         console.error("Failed to generate chat suggestions:", e);
         return [];
     }
 };
+
 
 /**
  * Generates images based on a prompt.

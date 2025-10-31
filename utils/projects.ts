@@ -45,11 +45,9 @@ export interface TranslatorState {
     error: string | null;
 }
 
-// FIX: Add types for Project Studio view state and results.
 export interface ProjectStudioResult {
-  type: 'summarize' | 'modify';
+  type: 'generation';
   content: string;
-  prompt?: string;
 }
 
 export interface ProjectStudioViewState {

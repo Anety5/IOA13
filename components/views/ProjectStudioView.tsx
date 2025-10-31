@@ -1,7 +1,6 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { ProjectStudioViewState, ProjectStudioResult } from '../../utils/projects';
-import { processText } from '../../services/geminiService';
+import { generateFromProjectStudio } from '../../services/geminiService';
 import Loader from '../Loader';
 import { SaveIcon } from '../icons/SaveIcon';
 import SaveToProjectModal from '../SaveToProjectModal';
@@ -9,9 +8,6 @@ import { renderMarkdown } from '../../utils/rendering';
 import { PaperclipIcon } from '../icons/PaperclipIcon';
 import { CloseIcon } from '../icons/CloseIcon';
 import { fileToBase64 } from '../../utils/image';
-import { SummarizeIcon } from '../icons/SummarizeIcon';
-import { PenIcon } from '../icons/PenIcon';
-import { RefreshIcon } from '../icons/RefreshIcon';
 import { HamburgerIcon } from '../icons/HamburgerIcon';
 import { ChatIcon } from '../icons/ChatIcon';
 
@@ -27,40 +23,27 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState, 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modifyPrompt, setModifyPrompt] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setViewContext(`User is in the Project Studio. Current text: "${state.mainText.substring(0, 100)}..."`);
+    setViewContext(`User is in the Project Studio. Current instructions: "${state.mainText.substring(0, 100)}..."`);
   }, [state.mainText, setViewContext]);
   
-  const handleAction = async (action: 'summarize' | 'modify', instructionOverride?: string) => {
+  const handleGenerate = async () => {
     if (!state.mainText.trim()) return;
-    
-    const instruction = instructionOverride ?? modifyPrompt;
-    if (action === 'modify' && !instruction.trim()) return;
 
     setIsLoading(true);
     setError('');
     try {
-        const response = await processText({
-            text: state.mainText,
-            action: action,
-            instruction: action === 'modify' ? instruction : undefined
-        });
+        const response = await generateFromProjectStudio(state.mainText, state.attachments);
 
       const newResult: ProjectStudioResult = {
-        type: action,
+        type: 'generation',
         content: response.text,
-        prompt: action === 'modify' ? instruction : undefined,
       };
       setState(s => ({ ...s, results: [newResult, ...s.results] }));
-      
-      if (action === 'modify' && !instructionOverride) {
-          setModifyPrompt('');
-      }
     } catch (err: any) {
-      setError(err.message || `An error occurred during the ${action} action.`);
+      setError(err.message || `An error occurred during generation.`);
     } finally {
       setIsLoading(false);
     }
@@ -78,9 +61,10 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState, 
         }));
     } else if (file.type === 'text/plain') {
         const textContent = await file.text();
+        const contextualizedText = `--- START OF DOCUMENT ---\n${textContent}\n--- END OF DOCUMENT ---`;
         setState(s => ({
             ...s,
-            mainText: s.mainText ? `${s.mainText}\n\n${textContent}` : textContent,
+            mainText: s.mainText ? `${s.mainText}\n\n${contextualizedText}` : contextualizedText,
         }));
     }
     
@@ -117,14 +101,14 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState, 
       </header>
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col p-4 border-r border-slate-700">
+        {/* Input Panel */}
+        <div className="flex-1 flex flex-col p-4 border-b lg:border-b-0 lg:border-r border-slate-700 overflow-y-auto">
           <div className="flex justify-between items-center mb-2">
-              <h2 className="text-lg font-medium">Content</h2>
+              <h2 className="text-lg font-medium">Context &amp; Instructions</h2>
               <button 
                   onClick={() => fileInputRef.current?.click()}
                   className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-700"
-                  title="Upload .txt or image file"
+                  title="Upload .txt or image file as context"
               >
                   <PaperclipIcon />
               </button>
@@ -136,15 +120,9 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState, 
                   accept="image/png, image/jpeg, text/plain"
               />
           </div>
-          <textarea
-            value={state.mainText}
-            onChange={(e) => setState(s => ({ ...s, mainText: e.target.value }))}
-            placeholder="Type, paste, or upload your content here..."
-            className="w-full flex-1 p-3 bg-slate-900 rounded-md resize-none focus:outline-none placeholder-slate-500 text-slate-300"
-          />
-          {state.attachments.length > 0 && (
-              <div className="mt-3 flex-shrink-0">
-                  <p className="text-sm text-slate-400 mb-2">Attachments:</p>
+           {state.attachments.length > 0 && (
+              <div className="mb-3 flex-shrink-0">
+                  <p className="text-sm text-slate-400 mb-2">Contextual Attachments:</p>
                   <div className="flex flex-wrap gap-2">
                       {state.attachments.map((att, index) => (
                           <div key={index} className="relative">
@@ -164,55 +142,39 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState, 
                   </div>
               </div>
           )}
+          <textarea
+            value={state.mainText}
+            onChange={(e) => setState(s => ({ ...s, mainText: e.target.value }))}
+            placeholder="List your rules, instructions, and prompt here. You can upload text files or images to provide context for the generation."
+            className="w-full flex-1 p-3 bg-slate-900 rounded-md resize-none focus:outline-none placeholder-slate-500 text-slate-300"
+          />
+         <button
+            onClick={handleGenerate}
+            disabled={isLoading || !state.mainText.trim()}
+            className="w-full mt-4 py-2.5 text-base font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+            {isLoading ? <Loader /> : 'Generate'}
+        </button>
         </div>
         
-        {/* Results Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="p-4 overflow-y-auto flex-1">
-              <h2 className="text-lg font-medium mb-4">Results</h2>
-              {isLoading && state.results.length === 0 && <div className="flex justify-center pt-8"><Loader /></div>}
-              {error && <p className="text-red-400">{error}</p>}
-              <div className="space-y-4">
+        {/* Output Panel */}
+        <div className="flex-1 flex flex-col overflow-hidden p-4">
+            <h2 className="text-lg font-medium mb-4">Generated Output</h2>
+            <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-4">
+                {isLoading && state.results.length === 0 && <div className="flex justify-center pt-8"><Loader /></div>}
+                {error && <p className="text-red-400 p-3 bg-red-900/50 rounded-md">{error}</p>}
+                
                 {state.results.map((result, index) => (
-                  <div key={index} className="bg-slate-900/70 p-4 rounded-lg border border-slate-700 group relative">
-                    <h3 className="font-semibold text-indigo-400 capitalize mb-2">{result.type}</h3>
-                    {result.prompt && <p className="text-sm text-slate-400 italic mb-2">Instruction: "{result.prompt}"</p>}
-                    <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }}></div>
-                     <button 
-                        onClick={() => handleAction(result.type, result.prompt)}
-                        className="absolute top-2 right-2 p-1.5 rounded-full text-slate-400 bg-slate-800/50 opacity-0 group-hover:opacity-100 hover:bg-slate-700 hover:text-white transition-opacity"
-                        title="Regenerate"
-                      >
-                          <RefreshIcon />
-                      </button>
-                  </div>
+                    <div key={index} className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
+                        <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }}></div>
+                    </div>
                 ))}
-              </div>
-          </div>
-           <div className="p-4 border-t border-slate-700 flex-shrink-0 flex flex-col sm:flex-row gap-4">
-                <button
-                    onClick={() => handleAction('summarize')}
-                    disabled={isLoading || !state.mainText.trim()}
-                    className="flex-1 py-2.5 text-base font-semibold rounded-md bg-cyan-600 hover:bg-cyan-700 transition-colors flex items-center justify-center gap-2 disabled:bg-cyan-800 disabled:cursor-not-allowed"
-                >
-                    <SummarizeIcon /> Summarize
-                </button>
-                <div className="flex-1 flex flex-col sm:flex-row gap-2">
-                    <input 
-                        type="text"
-                        value={modifyPrompt}
-                        onChange={e => setModifyPrompt(e.target.value)}
-                        placeholder="Instruction to modify..."
-                        className="flex-grow bg-slate-700 text-white rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <button
-                        onClick={() => handleAction('modify')}
-                        disabled={isLoading || !state.mainText.trim() || !modifyPrompt.trim()}
-                        className="py-2.5 px-4 text-base font-semibold rounded-md bg-purple-600 hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:bg-purple-800 disabled:cursor-not-allowed"
-                    >
-                       <PenIcon /> Modify
-                    </button>
-                </div>
+
+                {!isLoading && state.results.length === 0 && (
+                    <div className="h-full flex items-center justify-center text-center text-slate-500">
+                        <p>Your generated content will appear here.</p>
+                    </div>
+                )}
             </div>
         </div>
       </div>
