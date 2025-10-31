@@ -4,6 +4,12 @@
 
 This application serves as a powerful productivity tool and a live, interactive reference implementation for the Gemini API.
 
+## 🚀 **Live Demo**
+
+**Try it now**: [https://ioai-studio-861448228494.us-west1.run.app](https://ioai-studio-861448228494.us-west1.run.app)
+
+*Note: You'll need your own Gemini API key from [Google AI Studio](https://aistudio.google.com/) to use all features.*
+
 ## Features
 
 -   **✍️ Content Optimizer**: A versatile workspace for all text-based projects. Input your content, then **Summarize**, provide a custom instruction to **Modify**, or use fine-grained controls to **Optimize** it for a specific audience, goal, and tone. Supports text and image attachments for richer context.
@@ -81,6 +87,8 @@ Building a cutting-edge AI application comes with unique challenges. Here are so
 ## Deployment
 
 This is a **zero-build, static web application**. Deploy the entire folder to any static hosting service like Netlify, Vercel, or GitHub Pages.
+
+**Currently deployed on**: [Google Cloud Run](https://ioai-studio-861448228494.us-west1.run.app)
 
 **To deploy on Netlify:**
 1.  Connect your repository to Netlify.
