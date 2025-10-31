@@ -8,7 +8,7 @@ This application serves as a powerful productivity tool and a live, interactive 
 
 **Try it now**: [https://ioai-studio-861448228494.us-west1.run.app](https://ioai-studio-861448228494.us-west1.run.app)
 
-*Note: You'll need your own Gemini API key from [Google AI Studio](https://aistudio.google.com/) to use all features.*
+*⚠️ Important: This demo uses a limited shared API key for demonstration purposes only. For full functionality and your own usage, please clone this repository and use your own Gemini API key from [Google AI Studio](https://aistudio.google.com/).*
 
 ## Features
 
