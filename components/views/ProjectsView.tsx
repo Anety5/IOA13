@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { getProjects, deleteProject, deleteAssetFromProject, Project, Asset } from '../../utils/projects';
 import { TrashIcon } from '../icons/TrashIcon';

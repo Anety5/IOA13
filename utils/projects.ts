@@ -1,82 +1,72 @@
+// These types are based on the state managed in their respective views.
+// We'll define them here to be used for storing assets.
 
-
-// State definitions for different views
+export type OptimizerAction = 'optimize' | 'summarize' | 'modify' | 'proofread';
 
 export interface OptimizerResult {
-    type: 'optimization' | 'summary' | 'modification';
-    content: string;
-    prompt?: string; // For modifications
+  type: OptimizerAction;
+  content: string;
+  prompt?: string;
 }
 
-export interface OptimizerViewState {
+export interface OptimizerState {
   originalText: string;
   attachments: { data: string; mimeType: string }[];
   results: OptimizerResult[];
-  options: {
-    creativity: number;
-    readability: number;
-    formality: 'formal' | 'informal' | 'neutral';
-    tone: 'professional' | 'friendly' | 'confident' | 'academic';
+  creativity: number;
+  complexity: number;
+  formality: 'Formal' | 'Neutral' | 'Casual';
+  tone: 'Professional' | 'Friendly' | 'Direct' | 'Narrative';
+  guardrails: {
+    proofread: boolean;
+    plagiarismCheck: boolean;
   };
 }
 
 export interface ImageViewState {
   mode: 'generate' | 'edit' | 'analyze';
   prompt: string;
-  images: { src: string; prompt: string }[];
   sourceImage: { data: string; mimeType: string } | null;
-  analysisResult: string | null;
+  images: { src: string; prompt: string }[];
   isGenerating: boolean;
   error: string | null;
+  analysisResult: string | null;
   numberOfImages: number;
   aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
-  style: string;
+  style: 'none' | 'photorealistic' | 'anime' | '3d' | 'monochrome' | 'abstract';
 }
 
-export interface TranslatorViewState {
-  sourceText: string;
-  translatedText: string;
-  sourceLang: string;
-  targetLang: string;
+export interface TranslatorState {
+    fromText: string;
+    toText: string;
+    fromLang: string;
+    toLang: string;
+    isLoading: boolean;
+    error: string | null;
 }
 
-export interface VideoViewState {
-    // To be defined
-}
-
-export interface LiveConversationState {
-    // to be defined
-}
-
-// FIX: Add ProjectStudioResult type to support ProjectStudioView
+// FIX: Add types for Project Studio view state and results.
 export interface ProjectStudioResult {
-    type: 'summary' | 'modification';
-    content: string;
-    prompt?: string; // For modifications
+  type: 'summarize' | 'modify';
+  content: string;
+  prompt?: string;
 }
 
-// FIX: Add ProjectStudioViewState type to support ProjectStudioView
 export interface ProjectStudioViewState {
   mainText: string;
   attachments: { data: string; mimeType: string }[];
   results: ProjectStudioResult[];
 }
 
-
-export type AssetContent =
-  | OptimizerViewState
-  | ImageViewState
-  | TranslatorViewState
-  | VideoViewState
-  | LiveConversationState
-  // FIX: Add ProjectStudioViewState to the AssetContent union type
-  | ProjectStudioViewState;
+// AssetContent is a union of all possible state types that can be saved.
+// FIX: Add ProjectStudioViewState to AssetContent union type.
+export type AssetContent = OptimizerState | ImageViewState | TranslatorState | ProjectStudioViewState;
 
 export interface Asset {
   id: string;
   name: string;
-  // FIX: Add 'project_studio' to the list of valid asset types
-  type: 'optimizer' | 'image' | 'translator' | 'video' | 'live' | 'project_studio';
+  // FIX: Add 'project_studio' to Asset type.
+  type: 'optimizer' | 'image' | 'translator' | 'project_studio';
   content: AssetContent;
   createdAt: string;
   updatedAt: string;
@@ -92,37 +82,32 @@ export interface Project {
 
 const PROJECTS_KEY = 'ioai_studio_projects';
 
-// Helper to read from localStorage
-const readProjects = (): Project[] => {
+// Utility to get projects from localStorage
+export const getProjects = (): Project[] => {
   try {
-    const data = localStorage.getItem(PROJECTS_KEY);
-    return data ? JSON.parse(data) : [];
+    const projectsJson = localStorage.getItem(PROJECTS_KEY);
+    if (projectsJson) {
+      return JSON.parse(projectsJson);
+    }
   } catch (error) {
-    console.error("Failed to read projects from localStorage", error);
-    return [];
+    console.error("Failed to parse projects from localStorage", error);
   }
+  return [];
 };
 
-// Helper to write to localStorage
-const writeProjects = (projects: Project[]) => {
+// Utility to save projects to localStorage
+const saveProjects = (projects: Project[]): void => {
   try {
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
   } catch (error) {
-    console.error("Failed to write projects to localStorage", error);
+    console.error("Failed to save projects to localStorage", error);
   }
 };
 
-export const getProjects = (): Project[] => {
-  return readProjects();
-};
-
-export const getProject = (projectId: string): Project | undefined => {
-    return readProjects().find(p => p.id === projectId);
-}
-
+// Add a new project
 export const addProject = (name: string): Project | null => {
   if (!name.trim()) return null;
-  const projects = readProjects();
+  const projects = getProjects();
   const newProject: Project = {
     id: `proj_${Date.now()}`,
     name,
@@ -131,18 +116,26 @@ export const addProject = (name: string): Project | null => {
     updatedAt: new Date().toISOString(),
   };
   projects.unshift(newProject);
-  writeProjects(projects);
+  saveProjects(projects);
   return newProject;
 };
 
+// Delete a project
+export const deleteProject = (projectId: string): void => {
+  let projects = getProjects();
+  projects = projects.filter(p => p.id !== projectId);
+  saveProjects(projects);
+};
+
+// Add an asset to a project
 export const addAssetToProject = (
   projectId: string,
   assetName: string,
   assetType: Asset['type'],
   assetContent: AssetContent
 ): Project | null => {
-  const projects = readProjects();
-  const projectIndex = projects.findIndex((p) => p.id === projectId);
+  const projects = getProjects();
+  const projectIndex = projects.findIndex(p => p.id === projectId);
   if (projectIndex === -1) return null;
 
   const newAsset: Asset = {
@@ -153,43 +146,37 @@ export const addAssetToProject = (
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-
+  
   projects[projectIndex].assets.unshift(newAsset);
   projects[projectIndex].updatedAt = new Date().toISOString();
-  writeProjects(projects);
+  
+  saveProjects(projects);
   return projects[projectIndex];
 };
 
-export const updateAsset = (projectId: string, assetId: string, newContent: AssetContent): Project | null => {
-    const projects = readProjects();
-    const project = projects.find(p => p.id === projectId);
-    if (!project) return null;
-    
-    const asset = project.assets.find(a => a.id === assetId);
-    if (!asset) return null;
 
-    asset.content = newContent;
-    asset.updatedAt = new Date().toISOString();
-    project.updatedAt = new Date().toISOString();
-
-    writeProjects(projects);
-    return project;
-}
-
-export const deleteProject = (projectId: string) => {
-  let projects = readProjects();
-  projects = projects.filter((p) => p.id !== projectId);
-  writeProjects(projects);
+// Delete an asset from a project
+export const deleteAssetFromProject = (projectId: string, assetId: string): void => {
+  const projects = getProjects();
+  const projectIndex = projects.findIndex(p => p.id === projectId);
+  if (projectIndex > -1) {
+    projects[projectIndex].assets = projects[projectIndex].assets.filter(a => a.id !== assetId);
+    projects[projectIndex].updatedAt = new Date().toISOString();
+    saveProjects(projects);
+  }
 };
 
-export const deleteAssetFromProject = (projectId: string, assetId: string) => {
-  const projects = readProjects();
-  const projectIndex = projects.findIndex((p) => p.id === projectId);
-  if (projectIndex > -1) {
-    projects[projectIndex].assets = projects[projectIndex].assets.filter(
-      (a) => a.id !== assetId
-    );
-    projects[projectIndex].updatedAt = new Date().toISOString();
-    writeProjects(projects);
-  }
+// Add a single asset without a project (for "Save as New Asset")
+export const addOrphanAsset = (assetName: string, assetType: Asset['type'], assetContent: AssetContent) => {
+    const projects = getProjects();
+    const orphanProjectName = "My Assets";
+    let project = projects.find(p => p.name === orphanProjectName);
+
+    if (!project) {
+        project = addProject(orphanProjectName);
+    }
+    
+    if (project) {
+        addAssetToProject(project.id, assetName, assetType, assetContent);
+    }
 };

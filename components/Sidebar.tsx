@@ -1,14 +1,14 @@
-
 import React from 'react';
-import { ViewType } from '../App';
 import { Logo } from './icons/Logo';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { ImageIcon } from './icons/ImageIcon';
 import { TranslatorIcon } from './icons/TranslatorIcon';
-import { LiveIcon } from './icons/LiveIcon';
 import { VideoIcon } from './icons/VideoIcon';
 import { FolderIcon } from './icons/FolderIcon';
 import { CloseIcon } from './icons/CloseIcon';
+
+export type ViewType = 'optimizer' | 'image' | 'translator' | 'video' | 'projects';
+
 
 interface SidebarProps {
     activeView: ViewType;
@@ -36,7 +36,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
         { view: 'translator' as ViewType, label: 'Translator', icon: <TranslatorIcon /> },
         { view: 'image' as ViewType, label: 'Image Studio', icon: <ImageIcon /> },
         { view: 'video' as ViewType, label: 'Video Generator', icon: <VideoIcon />, isNew: true },
-        { view: 'live' as ViewType, label: 'Live Conversation', icon: <LiveIcon />, isNew: true },
         { view: 'projects' as ViewType, label: 'My Projects', icon: <FolderIcon /> },
     ];
     

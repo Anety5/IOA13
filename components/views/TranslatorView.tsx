@@ -1,195 +1,164 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { TranslatorViewState } from '../../utils/projects';
-import { translateText, textToSpeech } from '../../services/geminiService';
-import { playAudio } from '../../utils/audio';
+
+import React, { useState, useEffect } from 'react';
+import { translateText } from '../../services/geminiService';
+import { TranslatorState } from '../../utils/projects';
 import Loader from '../Loader';
 import { SaveIcon } from '../icons/SaveIcon';
-import SaveToProjectModal from '../SaveToProjectModal';
-import { SpeakerIcon } from '../icons/SpeakerIcon';
 import { CopyIcon } from '../icons/CopyIcon';
 import { HamburgerIcon } from '../icons/HamburgerIcon';
 import { ChatIcon } from '../icons/ChatIcon';
+import { RefreshIcon } from '../icons/RefreshIcon';
+import SaveToProjectModal from '../SaveToProjectModal';
 
 interface TranslatorViewProps {
-  state: TranslatorViewState;
-  setState: React.Dispatch<React.SetStateAction<TranslatorViewState>>;
+  state: TranslatorState;
+  setState: React.Dispatch<React.SetStateAction<TranslatorState>>;
   setViewContext: (context: string) => void;
   onSidebarToggle: () => void;
   onChatToggle: () => void;
 }
 
-const languages = {
-    "af": "Afrikaans", "ar": "Arabic", "bn": "Bengali", "bg": "Bulgarian", "ca": "Catalan",
-    "zh": "Chinese", "hr": "Croatian", "cs": "Czech", "da": "Danish", "nl": "Dutch",
-    "en": "English", "et": "Estonian", "fil": "Filipino", "fi": "Finnish", "fr": "French",
-    "de": "German", "el": "Greek", "gu": "Gujarati", "he": "Hebrew", "hi": "Hindi",
-    "hu": "Hungarian", "is": "Icelandic", "id": "Indonesian", "it": "Italian", "ja": "Japanese",
-    "kn": "Kannada", "ko": "Korean", "lv": "Latvian", "lt": "Lithuanian", "ms": "Malay",
-    "ml": "Malayalam", "mr": "Marathi", "no": "Norwegian", "pl": "Polish", "pt": "Portuguese",
-    "ro": "Romanian", "ru": "Russian", "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian",
-    "es": "Spanish", "sw": "Swahili", "sv": "Swedish", "ta": "Tamil", "te": "Telugu",
-    "th": "Thai", "tr": "Turkish", "uk": "Ukrainian", "ur": "Urdu", "vi": "Vietnamese"
-};
-
+// A simple list of common languages.
+const languages = [
+  { code: 'en', name: 'English' },
+  { code: 'es', name: 'Spanish' },
+  { code: 'fr', name: 'French' },
+  { code: 'de', name: 'German' },
+  { code: 'it', name: 'Italian' },
+  { code: 'ja', name: 'Japanese' },
+  { code: 'ko', name: 'Korean' },
+  { code: 'pt', name: 'Portuguese' },
+  { code: 'ru', name: 'Russian' },
+  { code: 'zh', name: 'Chinese' },
+  { code: 'ar', name: 'Arabic' },
+  { code: 'hi', name: 'Hindi' },
+];
 
 const TranslatorView: React.FC<TranslatorViewProps> = ({ state, setState, setViewContext, onSidebarToggle, onChatToggle }) => {
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isSpeaking, setIsSpeaking] = useState(false);
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    const [copied, setCopied] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-    useEffect(() => {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        return () => {
-            audioSourceRef.current?.stop();
-            audioContextRef.current?.close();
-        }
-    }, []);
+  useEffect(() => {
+    setViewContext(`User is in the Translator, translating from ${state.fromLang} to ${state.toLang}.`);
+  }, [state.fromLang, state.toLang, setViewContext]);
 
-    useEffect(() => {
-        setViewContext(`Translating from ${state.sourceLang} to ${state.targetLang}.`);
-    }, [state.sourceLang, state.targetLang, setViewContext]);
+  const handleTranslate = async () => {
+    if (!state.fromText.trim()) return;
 
+    setState(s => ({ ...s, isLoading: true, error: null }));
+    try {
+      const translated = await translateText(state.fromText, state.fromLang, state.toLang);
+      setState(s => ({ ...s, toText: translated }));
+    } catch (err: any) {
+      setState(s => ({ ...s, error: err.message || 'An error occurred during translation.' }));
+    } finally {
+      setState(s => ({ ...s, isLoading: false }));
+    }
+  };
+  
+  const handleSwapLanguages = () => {
+      setState(s => ({
+          ...s,
+          fromLang: s.toLang,
+          toLang: s.fromLang,
+          fromText: s.toText,
+          toText: s.fromText
+      }));
+  };
 
-    const handleTranslate = async () => {
-        if (!state.sourceText.trim()) return;
-        setIsLoading(true);
-        setError('');
-        try {
-            const result = await translateText(state.sourceText, state.sourceLang, state.targetLang);
-            setState(s => ({ ...s, translatedText: result }));
-        } catch (err: any) {
-            setError(err.message || 'An error occurred during translation.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  const copyToClipboard = () => {
+    if(!state.toText) return;
+    navigator.clipboard.writeText(state.toText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-    const handleTextToSpeech = async () => {
-        if (!state.translatedText.trim() || !audioContextRef.current) return;
-        if (isSpeaking && audioSourceRef.current) {
-            audioSourceRef.current.stop();
-            setIsSpeaking(false);
-            return;
-        }
+  return (
+    <div className="flex flex-col h-full bg-slate-800 text-white">
+        {/* Mobile Header */}
+        <header className="md:hidden p-2 flex justify-between items-center border-b border-slate-700 flex-shrink-0">
+            <button onClick={onSidebarToggle} className="p-2"><HamburgerIcon /></button>
+            <h1 className="font-semibold">Translator</h1>
+            <button onClick={onChatToggle} className="p-2"><ChatIcon /></button>
+        </header>
 
-        setIsLoading(true);
-        setError('');
-        try {
-            // Fix: Resume AudioContext on user gesture, as required by modern browsers.
-            if (audioContextRef.current.state === 'suspended') {
-                await audioContextRef.current.resume();
-            }
-            const base64Audio = await textToSpeech(state.translatedText);
-            const source = await playAudio(base64Audio, audioContextRef.current, () => setIsSpeaking(false));
-            audioSourceRef.current = source;
-            setIsSpeaking(true);
-        } catch (err: any) {
-            setError(err.message || 'Failed to generate speech.');
-            setIsSpeaking(false);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+        <header className="hidden md:flex flex-shrink-0 p-4 border-b border-slate-700 justify-between items-center">
+            <h1 className="text-xl font-semibold">Translator</h1>
+            <button
+                onClick={() => setIsModalOpen(true)}
+                disabled={!state.fromText && !state.toText}
+                className="px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+                <SaveIcon />
+                Save Translation
+            </button>
+        </header>
 
-    const handleCopy = () => {
-        if (!state.translatedText) return;
-        navigator.clipboard.writeText(state.translatedText);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-
-    return (
-        <div className="p-4 md:p-8 flex flex-col h-full bg-slate-800 text-white">
-             {/* Mobile Header */}
-            <header className="md:hidden p-2 flex justify-between items-center mb-4 flex-shrink-0">
-                <button onClick={onSidebarToggle} className="p-2"><HamburgerIcon /></button>
-                <h1 className="font-semibold">Translator</h1>
-                <button onClick={onChatToggle} className="p-2"><ChatIcon /></button>
-            </header>
-            
-            <header className="flex-shrink-0 mb-6 justify-between items-center hidden md:flex">
-                <h1 className="text-2xl font-bold">Translator</h1>
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    disabled={!state.sourceText && !state.translatedText}
-                    className="px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden p-4 gap-4">
+            {/* From Language */}
+            <div className="flex-1 flex flex-col bg-slate-900 rounded-lg p-4">
+                 <select
+                    value={state.fromLang}
+                    onChange={(e) => setState(s => ({...s, fromLang: e.target.value}))}
+                    className="mb-2 bg-slate-800 p-2 rounded-md self-start"
                 >
-                    <SaveIcon /> Save
+                    {languages.map(lang => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
+                </select>
+                <textarea
+                    value={state.fromText}
+                    onChange={(e) => setState(s => ({...s, fromText: e.target.value}))}
+                    placeholder="Enter text..."
+                    className="w-full flex-1 p-3 bg-slate-700/50 rounded-md resize-none focus:outline-none placeholder-slate-500 text-slate-300"
+                />
+            </div>
+            
+            {/* Swap and Translate Button */}
+            <div className="flex items-center justify-center">
+                <button onClick={handleSwapLanguages} className="p-2 rounded-full hover:bg-slate-700 rotate-90 md:rotate-0" title="Swap languages">
+                    <RefreshIcon />
                 </button>
-            </header>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
-                {/* Source */}
-                <div className="flex flex-col">
-                    <div className="flex justify-between items-center mb-2">
-                        <label htmlFor="source-lang" className="text-slate-400">From:</label>
-                        <select
-                            id="source-lang"
-                            value={state.sourceLang}
-                            onChange={(e) => setState(s => ({ ...s, sourceLang: e.target.value }))}
-                            className="bg-slate-700 p-1 rounded-md border border-slate-600 focus:outline-none"
-                        >
-                            <option value="auto">Auto-detect</option>
-                            {Object.entries(languages).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                        </select>
-                    </div>
-                    <textarea
-                        value={state.sourceText}
-                        onChange={(e) => setState(s => ({ ...s, sourceText: e.target.value }))}
-                        placeholder="Enter text to translate..."
-                        className="w-full flex-1 p-3 bg-slate-900 border border-slate-700 rounded-md resize-none focus:outline-none placeholder-slate-500 text-slate-300"
-                    />
-                </div>
-                {/* Target */}
-                <div className="flex flex-col">
-                    <div className="flex justify-between items-center mb-2">
-                         <label htmlFor="target-lang" className="text-slate-400">To:</label>
-                        <select
-                            id="target-lang"
-                            value={state.targetLang}
-                            onChange={(e) => setState(s => ({ ...s, targetLang: e.target.value }))}
-                             className="bg-slate-700 p-1 rounded-md border border-slate-600 focus:outline-none"
-                        >
-                             {Object.entries(languages).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                        </select>
-                    </div>
-                     <div className="w-full flex-1 p-3 bg-slate-900 border border-slate-700 rounded-md relative text-slate-300">
-                         {state.translatedText}
-                         <div className="absolute bottom-2 right-2 flex gap-2">
-                             <button onClick={handleTextToSpeech} disabled={!state.translatedText.trim()} className="p-2 rounded-full hover:bg-slate-700 disabled:opacity-50">
-                                 <SpeakerIcon isSpeaking={isSpeaking} />
-                             </button>
-                             <button onClick={handleCopy} disabled={!state.translatedText.trim()} className="p-2 rounded-full hover:bg-slate-700 disabled:opacity-50">
-                                 <CopyIcon className={copied ? 'text-green-400' : ''} />
-                             </button>
-                         </div>
-                     </div>
-                </div>
             </div>
 
-            <footer className="mt-6 flex-shrink-0 text-center">
-                 {error && <p className="text-red-400 mb-4">{error}</p>}
-                <button
-                    onClick={handleTranslate}
-                    disabled={isLoading || !state.sourceText.trim()}
-                    className="px-8 py-3 w-full sm:w-auto rounded-md bg-indigo-600 hover:bg-indigo-700 transition-colors font-semibold flex items-center justify-center disabled:bg-indigo-900"
-                >
-                    {isLoading ? <Loader /> : 'Translate'}
-                </button>
-            </footer>
-             <SaveToProjectModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                assetType="translator"
-                assetContent={state}
-                assetNameSuggestion={`Translation - ${new Date().toLocaleDateString()}`}
-            />
+            {/* To Language */}
+             <div className="flex-1 flex flex-col bg-slate-900 rounded-lg p-4 relative">
+                <div className="flex justify-between items-center mb-2">
+                    <select
+                        value={state.toLang}
+                        onChange={(e) => setState(s => ({...s, toLang: e.target.value}))}
+                        className="bg-slate-800 p-2 rounded-md"
+                    >
+                        {languages.map(lang => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
+                    </select>
+                     <button onClick={copyToClipboard} className="p-2 rounded-full hover:bg-slate-800" title="Copy">
+                        <CopyIcon className={copied ? 'text-green-400' : 'text-slate-400'}/>
+                    </button>
+                </div>
+                 <div className="w-full flex-1 p-3 bg-slate-700/50 rounded-md resize-none focus:outline-none text-slate-300 overflow-y-auto">
+                    {state.isLoading ? <div className="flex justify-center items-center h-full"><Loader/></div> : <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">{state.toText}</div>}
+                </div>
+                {state.error && <p className="text-red-400 text-xs mt-2">{state.error}</p>}
+             </div>
         </div>
-    );
+
+        <div className="p-4 border-t border-slate-700 flex-shrink-0">
+            <button
+                onClick={handleTranslate}
+                disabled={state.isLoading || !state.fromText.trim()}
+                className="w-full max-w-xs mx-auto py-2.5 text-base font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+                {state.isLoading ? <Loader /> : 'Translate'}
+            </button>
+        </div>
+
+        <SaveToProjectModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            assetType="translator"
+            assetContent={state}
+            assetNameSuggestion={`Translation ${state.fromLang} to ${state.toLang} - ${new Date().toLocaleDateString()}`}
+        />
+    </div>
+  );
 };
 
 export default TranslatorView;

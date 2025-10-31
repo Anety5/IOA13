@@ -1,234 +1,309 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { OptimizerViewState, OptimizerResult } from '../../utils/projects';
-import { optimizeText, summarizeText, modifyText } from '../../services/geminiService';
-import { renderMarkdown } from '../../utils/rendering';
+import { processText, TextAction } from '../../services/geminiService';
+import { OptimizerState, OptimizerResult, addOrphanAsset, OptimizerAction } from '../../utils/projects';
 import Slider from '../Slider';
+import Toggle from '../Toggle';
 import Loader from '../Loader';
 import SaveToProjectModal from '../SaveToProjectModal';
-import { SaveIcon } from '../icons/SaveIcon';
 import { SparkleIcon } from '../icons/SparkleIcon';
 import { ComplexityIcon } from '../icons/ComplexityIcon';
-import { BookIcon } from '../icons/BookIcon';
-import { PanelLeftCloseIcon } from '../icons/PanelLeftCloseIcon';
-import { PanelLeftOpenIcon } from '../icons/PanelLeftOpenIcon';
+import { ProofreadIcon } from '../icons/ProofreadIcon';
+import { PlagiarismCheckIcon } from '../icons/PlagiarismCheckIcon';
+import { renderMarkdown } from '../../utils/rendering';
+import { SaveIcon } from '../icons/SaveIcon';
+import { CopyIcon } from '../icons/CopyIcon';
+import { DownloadIcon } from '../icons/DownloadIcon';
+import { PaperclipIcon } from '../icons/PaperclipIcon';
+import { fileToBase64 } from '../../utils/image';
+import { CloseIcon } from '../icons/CloseIcon';
 import { SummarizeIcon } from '../icons/SummarizeIcon';
 import { PenIcon } from '../icons/PenIcon';
-import { PaperclipIcon } from '../icons/PaperclipIcon';
-import { CloseIcon } from '../icons/CloseIcon';
-import { fileToBase64 } from '../../utils/image';
-import { HamburgerIcon } from '../icons/HamburgerIcon';
-import { ChatIcon } from '../icons/ChatIcon';
+import { PanelLeftCloseIcon } from '../icons/PanelLeftCloseIcon';
+import { PanelLeftOpenIcon } from '../icons/PanelLeftOpenIcon';
 
 interface OptimizerViewProps {
-  state: OptimizerViewState;
-  setState: React.Dispatch<React.SetStateAction<OptimizerViewState>>;
+  state: OptimizerState;
+  setState: React.Dispatch<React.SetStateAction<OptimizerState>>;
   setViewContext: (context: string) => void;
-  onSidebarToggle: () => void;
-  onChatToggle: () => void;
 }
 
-const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewContext, onSidebarToggle, onChatToggle }) => {
-  const [isLoading, setIsLoading] = useState(false);
+const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewContext }) => {
+  const [isLoading, setIsLoading] = useState<TextAction | false>(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isControlsOpen, setIsControlsOpen] = useState(true);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [modifyPrompt, setModifyPrompt] = useState('');
+  const [isControlsOpen, setIsControlsOpen] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  
   useEffect(() => {
-    setViewContext(`User is in the Content Optimizer. Current text: ${state.originalText.substring(0, 100)}`);
+    setViewContext(`User is in the Content Optimizer. Current text: "${state.originalText.substring(0, 100)}..."`);
   }, [state.originalText, setViewContext]);
 
-  const handleAction = async (actionType: OptimizerResult['type']) => {
+  const handleAction = async (action: TextAction) => {
     if (!state.originalText.trim()) return;
-    if (actionType === 'modification' && !modifyPrompt.trim()) return;
-
-    setIsLoading(true);
+    if (action === 'modify' && !modifyPrompt.trim()) return;
+    
+    setIsLoading(action);
     setError('');
 
     try {
-        let response;
-        if (actionType === 'optimization') {
-            response = await optimizeText(state.originalText, state.options);
-        } else if (actionType === 'summary') {
-            response = await summarizeText(state.originalText);
-        } else { // modification
-            response = await modifyText(state.originalText, modifyPrompt);
-        }
+        const response = await processText({
+            text: state.originalText,
+            action: action,
+            instruction: modifyPrompt,
+            creativity: state.creativity,
+            complexity: state.complexity,
+            formality: state.formality,
+            tone: state.tone,
+            guardrails: state.guardrails,
+        });
 
-        const newResult: OptimizerResult = {
-            type: actionType,
-            content: response.text,
-            prompt: actionType === 'modification' ? modifyPrompt : undefined,
-        };
-
-        setState(s => ({ ...s, results: [newResult, ...s.results] }));
-        if (actionType === 'modification') setModifyPrompt('');
+      const newResult: OptimizerResult = {
+        type: action as OptimizerAction,
+        content: response.text,
+        prompt: action === 'modify' ? modifyPrompt : undefined,
+      };
+      setState(s => ({ ...s, results: [newResult, ...s.results] }));
+      if(action === 'modify') setModifyPrompt('');
 
     } catch (err: any) {
-        setError(err.message || `An error occurred during the ${actionType} action.`);
+      setError(err.message || 'An error occurred.');
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
-  };
-
-  const setOption = <K extends keyof OptimizerViewState['options']>(key: K, value: OptimizerViewState['options'][K]) => {
-    setState(s => ({ ...s, options: { ...s.options, [key]: value } }));
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.type.startsWith('image/')) {
-        const base64Data = await fileToBase64(file);
-        setState(s => ({ ...s, attachments: [...s.attachments, { data: base64Data, mimeType: file.type }] }));
-    } else if (file.type === 'text/plain') {
+    if (file.type === 'text/plain') {
         const textContent = await file.text();
-        setState(s => ({ ...s, originalText: s.originalText ? `${s.originalText}\n\n${textContent}` : textContent }));
+        setState(s => ({...s, originalText: s.originalText ? `${s.originalText}\n\n${textContent}` : textContent}));
+    } else if (file.type.startsWith('image/')) {
+        const base64Data = await fileToBase64(file);
+        setState(s => ({...s, attachments: [...s.attachments, {data: base64Data, mimeType: file.type}]}));
     }
+    if (event.target) event.target.value = '';
   };
 
   const removeAttachment = (index: number) => {
-    setState(s => ({ ...s, attachments: s.attachments.filter((_, i) => i !== index) }));
+      setState(s => ({...s, attachments: s.attachments.filter((_, i) => i !== index)}));
+  };
+
+  const copyToClipboard = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
   
+  const downloadResult = (result: OptimizerResult) => {
+      const blob = new Blob([result.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${result.type}_result.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+  };
+
+  const saveResultAsAsset = (result: OptimizerResult) => {
+      const newAssetState: OptimizerState = {
+          ...state,
+          originalText: result.content,
+          results: [],
+      };
+      addOrphanAsset(`New Asset from Result`, 'optimizer', newAssetState);
+      // Optional: Add user feedback, e.g., a toast notification
+  };
+
   const ControlsPanel = () => (
-    <div className="p-4 space-y-6 flex flex-col h-full">
-        <div className="flex justify-between items-center">
-             <h2 className="text-lg font-bold">Optimizer Controls</h2>
-             <button onClick={() => setIsControlsOpen(false)} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-md">
-                 <PanelLeftCloseIcon />
-             </button>
-        </div>
-      
-        <Slider
-            label="Creativity"
-            description="Controls how much the AI can deviate from the source text."
-            value={state.options.creativity}
-            onChange={(e) => setOption('creativity', parseInt(e.target.value))}
-            icon={<SparkleIcon />}
-            valueLabel={`${state.options.creativity}%`}
-            startLabel="Strict"
-            endLabel="Imaginative"
-        />
-        <Slider
-            label="Readability"
-            description="Adjusts the complexity of the language used."
-            value={state.options.readability}
-            onChange={(e) => setOption('readability', parseInt(e.target.value))}
-            icon={<BookIcon />}
-            valueLabel={`${state.options.readability}%`}
-            startLabel="Simple"
-            endLabel="Complex"
-        />
-        <div>
-            <label className="text-sm font-medium text-gray-300 mb-2 block">Formality</label>
-            <input type="text" value={state.options.formality} onChange={e => setOption('formality', e.target.value as any)} placeholder="e.g., neutral" className="w-full p-2 bg-slate-700 rounded-md border border-slate-600" />
-        </div>
-        <div>
-            <label className="text-sm font-medium text-gray-300 mb-2 block">Tone</label>
-            <input type="text" value={state.options.tone} onChange={e => setOption('tone', e.target.value as any)} placeholder="e.g., professional" className="w-full p-2 bg-slate-700 rounded-md border border-slate-600" />
+     <aside className={`bg-slate-900 border-r border-slate-700 flex flex-col transition-all duration-300 ease-in-out ${isControlsOpen ? 'w-full md:w-80 p-4' : 'w-0 p-0 overflow-hidden'}`}>
+        <div className="flex justify-between items-center mb-4 flex-shrink-0">
+            <h2 className="text-lg font-bold">Optimizer Controls</h2>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setIsControlsOpen(false)} className="p-2 text-slate-400 hover:text-white" title="Collapse Panel"><PanelLeftCloseIcon /></button>
+            </div>
         </div>
         
-        <div className="mt-auto pt-4 space-y-3">
-             <button onClick={() => handleAction('summary')} disabled={isLoading} className="w-full py-2.5 text-base font-semibold rounded-md bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                <SummarizeIcon /> Summarize
-            </button>
-             <div className="flex gap-2">
-                <input type="text" value={modifyPrompt} onChange={e => setModifyPrompt(e.target.value)} placeholder="e.g., turn this into a poem" className="flex-grow bg-slate-700 rounded-md px-3 py-1.5 text-sm" />
-                <button onClick={() => handleAction('modification')} disabled={isLoading || !modifyPrompt} className="p-2.5 rounded-md bg-purple-600 hover:bg-purple-700 disabled:opacity-50"><PenIcon /></button>
-            </div>
-            <button onClick={() => handleAction('optimization')} disabled={isLoading} className="w-full py-2.5 text-base font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {isLoading ? <Loader/> : 'Optimize'}
-            </button>
+        <div className="space-y-6 overflow-y-auto pr-2 -mr-4 flex-grow">
+          <Slider
+            label="Creativity"
+            description="Controls the uniqueness and imagination."
+            value={state.creativity}
+            onChange={(e) => setState(s => ({ ...s, creativity: parseInt(e.target.value, 10) }))}
+            icon={<SparkleIcon />}
+            valueLabel={`${state.creativity}%`}
+            startLabel="Strict"
+            endLabel="Imaginative"
+          />
+          <Slider
+            label="Readability"
+            description="Adjusts the complexity of the language used."
+            value={state.complexity}
+            onChange={(e) => setState(s => ({ ...s, complexity: parseInt(e.target.value, 10) }))}
+            icon={<ComplexityIcon />}
+            valueLabel={`${state.complexity}%`}
+            startLabel="Simple"
+            endLabel="Complex"
+          />
+          <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">Formality</label>
+              <select value={state.formality} onChange={e => setState(s => ({...s, formality: e.target.value as any}))} className="w-full p-2 bg-slate-700 rounded-md">
+                  <option>Formal</option>
+                  <option>Neutral</option>
+                  <option>Casual</option>
+              </select>
+          </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">Tone</label>
+              <select value={state.tone} onChange={e => setState(s => ({...s, tone: e.target.value as any}))} className="w-full p-2 bg-slate-700 rounded-md">
+                  <option>Professional</option>
+                  <option>Friendly</option>
+                  <option>Direct</option>
+                  <option>Narrative</option>
+              </select>
+          </div>
+          <div className="space-y-3 pt-2">
+            <Toggle
+              label="Proofread"
+              enabled={state.guardrails.proofread}
+              onChange={(enabled) => setState(s => ({ ...s, guardrails: { ...s.guardrails, proofread: enabled } }))}
+              icon={<ProofreadIcon />}
+            />
+            <Toggle
+              label="Originality Check"
+              enabled={state.guardrails.plagiarismCheck}
+              onChange={(enabled) => setState(s => ({ ...s, guardrails: { ...s.guardrails, plagiarismCheck: enabled } }))}
+              icon={<PlagiarismCheckIcon />}
+            />
+          </div>
         </div>
-    </div>
+        
+        <div className="mt-auto pt-4 space-y-2 flex-shrink-0">
+            <button onClick={() => handleAction('summarize')} disabled={!!isLoading || !state.originalText} className="w-full py-2 text-sm font-semibold rounded-md bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2">
+            {isLoading === 'summarize' ? <Loader /> : <><SummarizeIcon /> Summarize</>}
+          </button>
+          <div className="flex gap-2">
+              <input type="text" value={modifyPrompt} onChange={e => setModifyPrompt(e.target.value)} placeholder="e.g., turn this into a poem" className="w-full bg-slate-700 p-2 rounded-md text-sm" />
+              <button onClick={() => handleAction('modify')} disabled={!!isLoading || !state.originalText || !modifyPrompt} className="px-3 py-2 text-sm font-semibold rounded-md bg-purple-600 hover:bg-purple-700 disabled:opacity-50">
+                {isLoading === 'modify' ? <Loader /> : <PenIcon />}
+              </button>
+          </div>
+          <button onClick={() => handleAction('optimize')} disabled={!!isLoading || !state.originalText} className="w-full py-2.5 text-base font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
+            {isLoading === 'optimize' ? <Loader /> : 'Optimize'}
+          </button>
+        </div>
+    </aside>
   );
 
   return (
     <div className="flex h-full bg-slate-800 text-white">
-      {/* Controls Panel (Desktop) */}
-      <aside className={`flex-shrink-0 bg-slate-900 border-r border-slate-700 transition-all duration-300 overflow-hidden ${isControlsOpen ? 'w-80' : 'w-0'} hidden md:block`}>
-          <ControlsPanel />
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Mobile Header */}
-        <header className="md:hidden p-2 flex justify-between items-center border-b border-slate-700">
-             <button onClick={onSidebarToggle} className="p-2"><HamburgerIcon /></button>
-             <h1 className="font-semibold">Content Optimizer</h1>
-             <button onClick={onChatToggle} className="p-2"><ChatIcon /></button>
-        </header>
-
-        {/* Content Layout: Mobile (Column) vs Desktop (Row) */}
-        <div className="flex-1 flex flex-col md:grid md:grid-cols-2 gap-px bg-slate-700 overflow-y-auto">
-            {/* Original Text */}
-            <div className="flex flex-col bg-slate-800 p-4">
-                 <div className="flex justify-between items-center mb-2">
-                     <h3 className="text-lg font-semibold flex items-center gap-2">
-                        {!isControlsOpen && (
-                             <button onClick={() => setIsControlsOpen(true)} className="hidden md:inline-block p-1 text-slate-400 hover:text-white"><PanelLeftOpenIcon /></button>
-                        )}
-                        Original Text
-                     </h3>
-                     <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-white"><PaperclipIcon/></button>
-                     <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*, .txt"/>
-                 </div>
-                 <textarea
-                    value={state.originalText}
-                    onChange={(e) => setState(s => ({ ...s, originalText: e.target.value }))}
-                    placeholder="Enter your text here..."
-                    className="w-full flex-1 p-3 bg-slate-900 rounded-md resize-none border border-transparent focus:border-indigo-500 focus:outline-none placeholder-slate-500"
-                 />
-                 {state.attachments.length > 0 && (
-                     <div className="mt-2 flex flex-wrap gap-2">
-                         {state.attachments.map((att, i) => (
-                             <div key={i} className="relative">
-                                <img src={`data:${att.mimeType};base64,${att.data}`} className="h-12 w-12 rounded object-cover"/>
-                                <button onClick={() => removeAttachment(i)} className="absolute -top-1 -right-1 bg-slate-600 rounded-full p-0.5"><CloseIcon className="w-3 h-3"/></button>
-                             </div>
-                         ))}
-                     </div>
-                 )}
-            </div>
-
-            {/* Controls Panel (Mobile) */}
-            <div className="md:hidden bg-slate-900 border-t border-b border-slate-700">
-                {isControlsOpen ? <ControlsPanel/> : (
-                    <button onClick={() => setIsControlsOpen(true)} className="w-full p-3 text-center font-semibold">Show Optimizer Controls</button>
-                )}
-            </div>
-            
-            {/* Results */}
-            <div className="flex flex-col bg-slate-800 p-4">
-                 <h3 className="text-lg font-semibold mb-2">Optimized Results</h3>
-                 {error && <p className="text-red-400 p-2 bg-red-900/50 rounded-md mb-2">{error}</p>}
-                 <div className="w-full flex-1 bg-slate-900 rounded-md overflow-y-auto space-y-4 p-3">
-                     {state.results.length === 0 && <p className="text-slate-500 text-center pt-8">Your results will appear here.</p>}
-                     {state.results.map((result, i) => (
-                         <div key={i} className="border border-slate-700 rounded-md p-3">
-                             <h4 className="font-semibold capitalize text-indigo-400 mb-1">{result.type}</h4>
-                             {result.prompt && <p className="text-xs italic text-slate-400 mb-2">Instruction: "{result.prompt}"</p>}
-                             <div
-                                className="prose prose-invert prose-sm max-w-none"
-                                dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }}
-                             />
-                         </div>
-                     ))}
-                 </div>
-            </div>
-        </div>
+      {/* Controls Panel - Desktop */}
+      <div className="hidden md:flex">
+        <ControlsPanel />
       </div>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+          {/* Mobile: Single column scrollable layout */}
+          <div className="md:hidden flex flex-col h-full overflow-y-auto">
+              <div className="p-4 border-b border-slate-700">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-medium">Original Text</h3>
+                    {!isControlsOpen && (
+                        <button onClick={() => setIsControlsOpen(true)} className="p-2 text-slate-400 hover:text-white" title="Open Controls"><PanelLeftOpenIcon /></button>
+                    )}
+                  </div>
+                  <textarea value={state.originalText} onChange={(e) => setState(s => ({ ...s, originalText: e.target.value }))} placeholder="Paste your text here..." className="w-full h-48 p-3 bg-slate-900/50 rounded-md resize-none focus:outline-none placeholder-slate-500" />
+              </div>
+              
+              <div className="md:hidden">
+                <ControlsPanel />
+              </div>
+
+              <div className="p-4 border-t border-slate-700">
+                  <h3 className="text-lg font-medium mb-2">Results</h3>
+                   {error && <div className="p-3 bg-red-900/50 text-red-300 rounded-md mb-2">{error}</div>}
+                  <div className="space-y-4">
+                      {state.results.map((result, index) => (
+                           <div key={index} className="bg-slate-900/70 p-4 rounded-lg border border-slate-700 relative group">
+                               <h4 className="font-semibold capitalize text-indigo-400 mb-2">{result.type} Result</h4>
+                               <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }} />
+                                <div className="absolute top-2 right-2 flex gap-1 opacity-100 transition-opacity">
+                                  <button onClick={() => copyToClipboard(result.content, index)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Copy"><CopyIcon className={copiedIndex === index ? 'text-green-400' : 'text-slate-400'} /></button>
+                                  <button onClick={() => downloadResult(result)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Download"><DownloadIcon /></button>
+                                  <button onClick={() => saveResultAsAsset(result)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Save as New Asset"><SaveIcon /></button>
+                              </div>
+                           </div>
+                      ))}
+                  </div>
+              </div>
+          </div>
+
+          {/* Desktop: Side-by-side layout */}
+          <div className="hidden md:flex flex-1 flex-row overflow-hidden">
+              <div className="flex-1 p-4 flex flex-col">
+                  <h3 className="text-lg font-medium mb-2 flex justify-between items-center">
+                      Original Text
+                      {!isControlsOpen && (
+                          <button onClick={() => setIsControlsOpen(true)} className="p-2 text-slate-400 hover:text-white" title="Open Controls"><PanelLeftOpenIcon /></button>
+                      )}
+                  </h3>
+                  <textarea value={state.originalText} onChange={(e) => setState(s => ({ ...s, originalText: e.target.value }))} placeholder="Paste your text here..." className="w-full flex-1 p-3 bg-slate-900/50 rounded-md resize-none focus:outline-none placeholder-slate-500" />
+                  <div className="flex items-center justify-between pt-2">
+                       <div className="flex flex-wrap gap-2">
+                          {state.attachments.map((att, index) => (
+                              <div key={index} className="relative">
+                                  <img src={`data:${att.mimeType};base64,${att.data}`} alt={`att ${index}`} className="h-12 w-12 rounded" />
+                                  <button onClick={() => removeAttachment(index)} className="absolute -top-1 -right-1 p-0.5 bg-slate-600 rounded-full"><CloseIcon className="w-3 h-3" /></button>
+                              </div>
+                          ))}
+                      </div>
+                      <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-white"><PaperclipIcon /></button>
+                      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,text/plain"/>
+                  </div>
+              </div>
+              <div className="flex-1 p-4 flex flex-col bg-slate-800 border-l border-slate-700 overflow-hidden">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-medium">Results</h3>
+                    <button 
+                        onClick={() => setIsModalOpen(true)} 
+                        disabled={!state.originalText && state.results.length === 0} 
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 transition-colors disabled:opacity-50"
+                        title="Save entire session to a project"
+                    >
+                        <SaveIcon />
+                        Save Project
+                    </button>
+                  </div>
+                  {error && <div className="p-3 bg-red-900/50 text-red-300 rounded-md mb-2">{error}</div>}
+                  <div className="flex-1 overflow-y-auto space-y-4 pr-2 -mr-2">
+                      {state.results.map((result, index) => (
+                           <div key={index} className="bg-slate-900/70 p-4 rounded-lg border border-slate-700 group relative">
+                               <h4 className="font-semibold capitalize text-indigo-400 mb-2">{result.type} Result</h4>
+                               <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }} />
+                               <div className="absolute top-2 right-2 flex gap-1 opacity-100 transition-opacity">
+                                  <button onClick={() => copyToClipboard(result.content, index)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Copy"><CopyIcon className={copiedIndex === index ? 'text-green-400' : 'text-slate-400'} /></button>
+                                  <button onClick={() => downloadResult(result)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Download"><DownloadIcon /></button>
+                                  <button onClick={() => saveResultAsAsset(result)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Save as New Asset"><SaveIcon /></button>
+                              </div>
+                           </div>
+                      ))}
+                      {state.results.length === 0 && <div className="h-full flex items-center justify-center text-slate-500">Your results will appear here.</div>}
+                  </div>
+              </div>
+          </div>
+      </main>
+
       <SaveToProjectModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          assetType="optimizer"
-          assetContent={state}
-          assetNameSuggestion={`Optimized Content - ${new Date().toLocaleDateString()}`}
-        />
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        assetType="optimizer"
+        assetContent={state}
+        assetNameSuggestion={`Optimizer Session - ${new Date().toLocaleDateString()}`}
+      />
     </div>
   );
 };

@@ -1,126 +1,120 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
+
 import OptimizerView from './components/views/OptimizerView';
 import ImageView from './components/views/ImageView';
 import TranslatorView from './components/views/TranslatorView';
-import LiveConversationView from './components/views/LiveConversationView';
 import VideoView from './components/views/VideoView';
 import ProjectsView from './components/views/ProjectsView';
+
+import Sidebar, { ViewType } from './components/Sidebar';
 import ChatWidget from './components/ChatWidget';
-import Sidebar from './components/Sidebar';
-import { 
-    Project, 
-    Asset,
-    OptimizerViewState,
-    ImageViewState,
-    TranslatorViewState,
-} from './utils/projects';
 
-export type ViewType = 'optimizer' | 'image' | 'translator' | 'live' | 'video' | 'projects';
-
-// Initial state for each view
-const initialOptimizerState: OptimizerViewState = {
-  originalText: '',
-  results: [],
-  attachments: [],
-  options: {
-    creativity: 50,
-    readability: 50,
-    formality: 'neutral',
-    tone: 'professional',
-  },
-};
-
-const initialImageViewState: ImageViewState = {
-  mode: 'generate',
-  prompt: '',
-  images: [],
-  sourceImage: null,
-  analysisResult: null,
-  isGenerating: false,
-  error: null,
-  numberOfImages: 1,
-  aspectRatio: '1:1',
-  style: 'none',
-};
-
-const initialTranslatorState: TranslatorViewState = {
-  sourceText: '',
-  translatedText: '',
-  sourceLang: 'auto',
-  targetLang: 'en',
-};
-
+import { OptimizerState, ImageViewState, TranslatorState, Project, Asset } from './utils/projects';
+import { ChatIcon } from './components/icons/ChatIcon';
 
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>('optimizer');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Closed by default on mobile
-  const [viewContext, setViewContext] = useState("Currently in the Optimizer view.");
+  const [viewContext, setViewContext] = useState('User is in the Content Optimizer.');
 
   // State for each view
-  const [optimizerState, setOptimizerState] = useState<OptimizerViewState>(initialOptimizerState);
-  const [imageViewState, setImageViewState] = useState<ImageViewState>(initialImageViewState);
-  const [translatorState, setTranslatorState] = useState<TranslatorViewState>(initialTranslatorState);
+  const [optimizerState, setOptimizerState] = useState<OptimizerState>({
+    originalText: '',
+    attachments: [],
+    results: [],
+    creativity: 50,
+    complexity: 50,
+    formality: 'Neutral',
+    tone: 'Professional',
+    guardrails: { proofread: true, plagiarismCheck: false },
+  });
 
-  const handleLoadAsset = useCallback((asset: Asset, project: Project) => {
+  const [imageViewState, setImageViewState] = useState<ImageViewState>({
+    mode: 'generate',
+    prompt: '',
+    sourceImage: null,
+    images: [],
+    isGenerating: false,
+    error: null,
+    analysisResult: null,
+    numberOfImages: 1,
+    aspectRatio: '1:1',
+    style: 'none',
+  });
+  
+  const [translatorState, setTranslatorState] = useState<TranslatorState>({
+    fromText: '',
+    toText: '',
+    fromLang: 'en',
+    toLang: 'es',
+    isLoading: false,
+    error: null,
+  });
+
+  const handleLoadAsset = (asset: Asset, project: Project) => {
     switch (asset.type) {
-      case 'optimizer':
-        setOptimizerState(asset.content as OptimizerViewState);
-        setActiveView('optimizer');
-        break;
-      case 'image':
-        setImageViewState(asset.content as ImageViewState);
-        setActiveView('image');
-        break;
-      case 'translator':
-        setTranslatorState(asset.content as TranslatorViewState);
-        setActiveView('translator');
-        break;
-      default:
-        console.warn(`Asset type "${asset.type}" cannot be loaded yet.`);
+        case 'optimizer':
+            setOptimizerState(asset.content as OptimizerState);
+            setActiveView('optimizer');
+            break;
+        case 'image':
+            setImageViewState(asset.content as ImageViewState);
+            setActiveView('image');
+            break;
+        case 'translator':
+            setTranslatorState(asset.content as TranslatorState);
+            setActiveView('translator');
+            break;
     }
-  }, []);
+  };
+  
+  const handleSidebarToggle = () => setIsSidebarOpen(prev => !prev);
+  const handleChatToggle = () => setIsChatOpen(prev => !prev);
 
   const renderActiveView = () => {
     const commonProps = {
-        onSidebarToggle: () => setIsSidebarOpen(prev => !prev),
-        onChatToggle: () => setIsChatOpen(prev => !prev),
+        setViewContext,
     };
-
+    const viewToggleProps = {
+        onSidebarToggle: handleSidebarToggle,
+        onChatToggle: handleChatToggle,
+    };
     switch (activeView) {
       case 'optimizer':
-        return <OptimizerView state={optimizerState} setState={setOptimizerState} setViewContext={setViewContext} {...commonProps} />;
+        return <OptimizerView state={optimizerState} setState={setOptimizerState} {...commonProps} />;
       case 'image':
-        return <ImageView state={imageViewState} setState={setImageViewState} setViewContext={setViewContext} {...commonProps} />;
+        return <ImageView state={imageViewState} setState={setImageViewState} {...commonProps} {...viewToggleProps} />;
       case 'translator':
-        return <TranslatorView state={translatorState} setState={setTranslatorState} setViewContext={setViewContext} {...commonProps} />;
-      case 'live':
-        return <LiveConversationView {...commonProps} />;
+        return <TranslatorView state={translatorState} setState={setTranslatorState} {...commonProps} {...viewToggleProps} />;
       case 'video':
-        return <VideoView {...commonProps} />;
+        return <VideoView {...viewToggleProps} />;
       case 'projects':
-        return <ProjectsView onLoadAsset={handleLoadAsset} {...commonProps} />;
+        return <ProjectsView onLoadAsset={handleLoadAsset} {...viewToggleProps} />;
       default:
-        return <div className="p-8">Select a tool to get started.</div>;
+        return <OptimizerView state={optimizerState} setState={setOptimizerState} {...commonProps} />;
     }
   };
 
   return (
-    <div className="h-screen w-screen bg-slate-800 text-white flex font-sans overflow-hidden">
-        <Sidebar 
-            activeView={activeView}
-            setActiveView={setActiveView}
-            isOpen={isSidebarOpen}
-            setIsOpen={setIsSidebarOpen}
-        />
-        <main className="flex-1 h-full overflow-y-auto">
-          {renderActiveView()}
-        </main>
-      <ChatWidget 
-        isOpen={isChatOpen} 
-        onClose={() => setIsChatOpen(false)} 
-        viewContext={viewContext}
-      />
+    <div className="flex h-screen bg-slate-800 font-sans text-white">
+        <Sidebar activeView={activeView} setActiveView={setActiveView} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+        <div className="flex-1 flex flex-col min-w-0">
+            <main className="flex-1 overflow-hidden">
+                {renderActiveView()}
+            </main>
+        </div>
+        <ChatWidget context={viewContext} isOpen={isChatOpen} setIsOpen={setIsChatOpen} />
+
+        {!isChatOpen && (
+            <button
+                onClick={handleChatToggle}
+                className="fixed bottom-6 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-transform hover:scale-105 z-40"
+                aria-label="Open AI Assistant"
+            >
+                <ChatIcon />
+            </button>
+        )}
     </div>
   );
 };

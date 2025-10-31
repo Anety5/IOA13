@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { ProjectStudioViewState, ProjectStudioResult } from '../../utils/projects';
-import { summarizeText, modifyText } from '../../services/geminiService';
+import { processText } from '../../services/geminiService';
 import Loader from '../Loader';
 import { SaveIcon } from '../icons/SaveIcon';
 import SaveToProjectModal from '../SaveToProjectModal';
@@ -11,43 +12,51 @@ import { fileToBase64 } from '../../utils/image';
 import { SummarizeIcon } from '../icons/SummarizeIcon';
 import { PenIcon } from '../icons/PenIcon';
 import { RefreshIcon } from '../icons/RefreshIcon';
+import { HamburgerIcon } from '../icons/HamburgerIcon';
+import { ChatIcon } from '../icons/ChatIcon';
 
 interface ProjectStudioViewProps {
   state: ProjectStudioViewState;
   setState: React.Dispatch<React.SetStateAction<ProjectStudioViewState>>;
+  setViewContext: (context: string) => void;
+  onSidebarToggle: () => void;
+  onChatToggle: () => void;
 }
 
-const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }) => {
+const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState, setViewContext, onSidebarToggle, onChatToggle }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modifyPrompt, setModifyPrompt] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setViewContext(`User is in the Project Studio. Current text: "${state.mainText.substring(0, 100)}..."`);
+  }, [state.mainText, setViewContext]);
   
-  const handleAction = async (action: 'summary' | 'modification', instructionOverride?: string) => {
+  const handleAction = async (action: 'summarize' | 'modify', instructionOverride?: string) => {
     if (!state.mainText.trim()) return;
     
     const instruction = instructionOverride ?? modifyPrompt;
-    if (action === 'modification' && !instruction.trim()) return;
+    if (action === 'modify' && !instruction.trim()) return;
 
     setIsLoading(true);
     setError('');
     try {
-        let response;
-        if (action === 'summary') {
-            response = await summarizeText(state.mainText);
-        } else {
-            response = await modifyText(state.mainText, instruction);
-        }
+        const response = await processText({
+            text: state.mainText,
+            action: action,
+            instruction: action === 'modify' ? instruction : undefined
+        });
 
       const newResult: ProjectStudioResult = {
         type: action,
         content: response.text,
-        prompt: action === 'modification' ? instruction : undefined,
+        prompt: action === 'modify' ? instruction : undefined,
       };
       setState(s => ({ ...s, results: [newResult, ...s.results] }));
       
-      if (action === 'modification' && !instructionOverride) {
+      if (action === 'modify' && !instructionOverride) {
           setModifyPrompt('');
       }
     } catch (err: any) {
@@ -89,7 +98,13 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }
 
   return (
     <div className="flex flex-col h-full bg-slate-800 text-white">
-      <header className="flex-shrink-0 p-4 border-b border-slate-700 flex justify-between items-center">
+      {/* Mobile Header */}
+      <header className="md:hidden p-2 flex justify-between items-center border-b border-slate-700 flex-shrink-0">
+          <button onClick={onSidebarToggle} className="p-2"><HamburgerIcon /></button>
+          <h1 className="font-semibold">Project Studio</h1>
+          <button onClick={onChatToggle} className="p-2"><ChatIcon /></button>
+      </header>
+      <header className="hidden md:flex flex-shrink-0 p-4 border-b border-slate-700 justify-between items-center">
         <h1 className="text-xl font-semibold">Project Studio</h1>
         <button
             onClick={() => setIsModalOpen(true)}
@@ -176,7 +191,7 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }
           </div>
            <div className="p-4 border-t border-slate-700 flex-shrink-0 flex flex-col sm:flex-row gap-4">
                 <button
-                    onClick={() => handleAction('summary')}
+                    onClick={() => handleAction('summarize')}
                     disabled={isLoading || !state.mainText.trim()}
                     className="flex-1 py-2.5 text-base font-semibold rounded-md bg-cyan-600 hover:bg-cyan-700 transition-colors flex items-center justify-center gap-2 disabled:bg-cyan-800 disabled:cursor-not-allowed"
                 >
@@ -191,7 +206,7 @@ const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({ state, setState }
                         className="flex-grow bg-slate-700 text-white rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                     <button
-                        onClick={() => handleAction('modification')}
+                        onClick={() => handleAction('modify')}
                         disabled={isLoading || !state.mainText.trim() || !modifyPrompt.trim()}
                         className="py-2.5 px-4 text-base font-semibold rounded-md bg-purple-600 hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:bg-purple-800 disabled:cursor-not-allowed"
                     >
