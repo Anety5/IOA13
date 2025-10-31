@@ -1,0 +1,21 @@
+{
+  "name": "Idea Optimizer AI",
+  "short_name": "Idea Optimizer",
+  "description": "A multi-modal AI-powered web application using the Google Gemini API for text, chat, image, and voice.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "icons/icon48.png",
+      "sizes": "48x48",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    }
+  ]
+}
