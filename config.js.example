@@ -1,1 +1,8 @@
-ÿÿ¾øj(‚W†zh§ˆÈ)ì‚¢wâ‚êÚ¶*'ûï¿ÿjG
+// Example configuration file
+// Copy this file to config.js and add your actual API key
+
+const config = {
+    API_KEY: 'YOUR_GEMINI_API_KEY_HERE'
+};
+
+export default config;
