@@ -143,7 +143,6 @@ export const generateImage = async (prompt: string, numberOfImages: number, aspe
           numberOfImages: numberOfImages,
           outputMimeType: 'image/png',
           aspectRatio: aspectRatio as any,
-          negativePrompt: "text, words, letters, logos, watermarks, signatures",
         },
     });
 

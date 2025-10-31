@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ImageViewState, addOrphanAsset } from '../../utils/projects';
 import { generateImage, editImage, analyzeImage } from '../../services/geminiService';
@@ -15,6 +16,7 @@ import { ChatIcon } from '../icons/ChatIcon';
 import { CloseIcon } from '../icons/CloseIcon';
 import { SaveIcon } from '../icons/SaveIcon';
 import { ShareIcon } from '../icons/ShareIcon';
+import { PaperclipIcon } from '../icons/PaperclipIcon';
 
 
 interface ImageViewProps {
@@ -43,7 +45,12 @@ const ImageView: React.FC<ImageViewProps> = ({ state, setState, setViewContext, 
     if (!file || !file.type.startsWith('image/')) return;
     try {
       const base64Data = await fileToBase64(file);
-      setState(s => ({ ...s, sourceImage: { data: base64Data, mimeType: file.type } }));
+      setState(s => ({ 
+          ...s, 
+          sourceImage: { data: base64Data, mimeType: file.type },
+          // Switch to edit mode if user was in generate mode
+          mode: s.mode === 'generate' ? 'edit' : s.mode 
+      }));
     } catch (err) {
       console.error("Error converting file to base64", err);
       setState(s => ({ ...s, error: 'Failed to load image.' }));
@@ -141,6 +148,7 @@ const ImageView: React.FC<ImageViewProps> = ({ state, setState, setViewContext, 
 
   return (
     <div className="flex flex-col h-full bg-slate-800 text-white">
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*"/>
         {/* Mobile Header */}
         <header className="md:hidden p-2 flex justify-between items-center border-b border-slate-700 flex-shrink-0">
             <button onClick={onSidebarToggle} className="p-2"><HamburgerIcon /></button>
@@ -180,24 +188,32 @@ const ImageView: React.FC<ImageViewProps> = ({ state, setState, setViewContext, 
                                 <span>Click to upload</span>
                             </button>
                         )}
-                         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*"/>
                     </div>
                 )}
 
                 {/* Prompt */}
                 <div className="space-y-2">
                     <label htmlFor="prompt" className="text-sm font-medium text-gray-300">Prompt</label>
-                    <textarea
-                        id="prompt"
-                        value={state.prompt}
-                        onChange={(e) => setState(s => ({ ...s, prompt: e.target.value }))}
-                        placeholder={
-                            state.mode === 'generate' ? "A futuristic cityscape at sunset..." :
-                            state.mode === 'edit' ? "Make the sky purple..." :
-                            "Describe this image..."
-                        }
-                        className="w-full p-2 bg-slate-700 rounded-md border border-slate-600 h-24 resize-none"
-                    />
+                    <div className="relative">
+                        <textarea
+                            id="prompt"
+                            value={state.prompt}
+                            onChange={(e) => setState(s => ({ ...s, prompt: e.target.value }))}
+                            placeholder={
+                                state.mode === 'generate' ? "A futuristic cityscape at sunset..." :
+                                state.mode === 'edit' ? "Make the sky purple..." :
+                                "Describe this image..."
+                            }
+                            className="w-full p-2 pr-12 bg-slate-700 rounded-md border border-slate-600 h-24 resize-none"
+                        />
+                         <button 
+                            onClick={() => fileInputRef.current?.click()} 
+                            className="absolute bottom-2 right-2 p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-600"
+                            title="Attach image to edit"
+                        >
+                            <PaperclipIcon />
+                        </button>
+                    </div>
                 </div>
                 
                 {/* Options for Generate */}
