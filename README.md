@@ -57,8 +57,8 @@ Building a cutting-edge AI application comes with unique challenges. Here are so
 ### Setup Instructions
 1.  **Clone the Repository**
     ```sh
-    git clone <your-repository-url>
-    cd <repository-folder>
+    git clone https://github.com/Anety5/IOA13.git
+    cd IOA13
     ```
 
 2.  **Set Up Your Gemini API Key**
