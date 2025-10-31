@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { processText, TextAction } from '../../services/geminiService';
 import { OptimizerState, OptimizerResult, addOrphanAsset, OptimizerAction } from '../../utils/projects';
@@ -32,6 +33,7 @@ const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewC
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [summarizingIndex, setSummarizingIndex] = useState<number | null>(null);
   const [modifyPrompt, setModifyPrompt] = useState('');
   const [isControlsOpen, setIsControlsOpen] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,6 +73,28 @@ const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewC
       setError(err.message || 'An error occurred.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSummarizeResult = async (contentToSummarize: string, index: number) => {
+    setSummarizingIndex(index);
+    setError('');
+    try {
+        const response = await processText({
+            text: contentToSummarize,
+            action: 'summarize',
+        });
+
+        const newResult: OptimizerResult = {
+            type: 'summarize',
+            content: response.text,
+        };
+        setState(s => ({ ...s, results: [newResult, ...s.results] }));
+
+    } catch (err: any) {
+        setError(err.message || 'An error occurred while summarizing.');
+    } finally {
+        setSummarizingIndex(null);
     }
   };
 
@@ -182,9 +206,6 @@ const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewC
         </div>
         
         <div className="mt-auto pt-4 space-y-2 flex-shrink-0">
-            <button onClick={() => handleAction('summarize')} disabled={!!isLoading || !state.originalText} className="w-full py-2 text-sm font-semibold rounded-md bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2">
-            {isLoading === 'summarize' ? <Loader /> : <><SummarizeIcon /> Summarize</>}
-          </button>
           <div className="flex gap-2">
               <input type="text" value={modifyPrompt} onChange={e => setModifyPrompt(e.target.value)} placeholder="e.g., turn this into a poem" className="w-full bg-slate-700 p-2 rounded-md text-sm" />
               <button onClick={() => handleAction('modify')} disabled={!!isLoading || !state.originalText || !modifyPrompt} className="px-3 py-2 text-sm font-semibold rounded-md bg-purple-600 hover:bg-purple-700 disabled:opacity-50">
@@ -232,6 +253,9 @@ const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewC
                                <h4 className="font-semibold capitalize text-indigo-400 mb-2">{result.type} Result</h4>
                                <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }} />
                                 <div className="absolute top-2 right-2 flex gap-1 opacity-100 transition-opacity">
+                                  <button onClick={() => handleSummarizeResult(result.content, index)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Summarize this result" disabled={summarizingIndex === index}>
+                                    {summarizingIndex === index ? <Loader size="sm" /> : <SummarizeIcon />}
+                                  </button>
                                   <button onClick={() => copyToClipboard(result.content, index)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Copy"><CopyIcon className={copiedIndex === index ? 'text-green-400' : 'text-slate-400'} /></button>
                                   <button onClick={() => downloadResult(result)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Download"><DownloadIcon /></button>
                                   <button onClick={() => saveResultAsAsset(result)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Save as New Asset"><SaveIcon /></button>
@@ -285,6 +309,9 @@ const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewC
                                <h4 className="font-semibold capitalize text-indigo-400 mb-2">{result.type} Result</h4>
                                <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }} />
                                <div className="absolute top-2 right-2 flex gap-1 opacity-100 transition-opacity">
+                                  <button onClick={() => handleSummarizeResult(result.content, index)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Summarize this result" disabled={summarizingIndex === index}>
+                                      {summarizingIndex === index ? <Loader size="sm" /> : <SummarizeIcon />}
+                                  </button>
                                   <button onClick={() => copyToClipboard(result.content, index)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Copy"><CopyIcon className={copiedIndex === index ? 'text-green-400' : 'text-slate-400'} /></button>
                                   <button onClick={() => downloadResult(result)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Download"><DownloadIcon /></button>
                                   <button onClick={() => saveResultAsAsset(result)} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700" title="Save as New Asset"><SaveIcon /></button>
