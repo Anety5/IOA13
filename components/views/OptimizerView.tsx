@@ -237,7 +237,26 @@ const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewC
                         <button onClick={() => setIsControlsOpen(true)} className="p-2 text-slate-400 hover:text-white" title="Open Controls"><PanelLeftOpenIcon /></button>
                     )}
                   </div>
-                  <textarea value={state.originalText} onChange={(e) => setState(s => ({ ...s, originalText: e.target.value }))} placeholder="Paste your text here..." className="w-full h-48 p-3 bg-slate-900/50 rounded-md resize-none focus:outline-none placeholder-slate-500" />
+                   <div className="relative">
+                      <textarea 
+                          value={state.originalText} 
+                          onChange={(e) => setState(s => ({ ...s, originalText: e.target.value }))} 
+                          placeholder="Paste your text here..." 
+                          className="w-full h-48 p-3 pb-16 bg-slate-900/50 rounded-md resize-none focus:outline-none placeholder-slate-500" 
+                      />
+                      <div className="absolute bottom-3 left-3 flex flex-wrap gap-2">
+                          {state.attachments.map((att, index) => (
+                              <div key={index} className="relative">
+                                  <img src={`data:${att.mimeType};base64,${att.data}`} alt={`att ${index}`} className="h-12 w-12 rounded" />
+                                  <button onClick={() => removeAttachment(index)} className="absolute -top-1 -right-1 p-0.5 bg-slate-600 rounded-full"><CloseIcon className="w-3 h-3" /></button>
+                              </div>
+                          ))}
+                      </div>
+                      <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-3 right-3 p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-700 transition-colors">
+                          <PaperclipIcon />
+                      </button>
+                      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,text/plain"/>
+                  </div>
               </div>
               
               <div className="md:hidden">
@@ -275,9 +294,14 @@ const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewC
                           <button onClick={() => setIsControlsOpen(true)} className="p-2 text-slate-400 hover:text-white" title="Open Controls"><PanelLeftOpenIcon /></button>
                       )}
                   </h3>
-                  <textarea value={state.originalText} onChange={(e) => setState(s => ({ ...s, originalText: e.target.value }))} placeholder="Paste your text here..." className="w-full flex-1 p-3 bg-slate-900/50 rounded-md resize-none focus:outline-none placeholder-slate-500" />
-                  <div className="flex items-center justify-between pt-2">
-                       <div className="flex flex-wrap gap-2">
+                   <div className="relative flex-1 w-full">
+                      <textarea 
+                          value={state.originalText} 
+                          onChange={(e) => setState(s => ({ ...s, originalText: e.target.value }))} 
+                          placeholder="Paste your text here..." 
+                          className="w-full h-full p-3 pb-16 bg-slate-900/50 rounded-md resize-none focus:outline-none placeholder-slate-500" 
+                      />
+                      <div className="absolute bottom-3 left-3 flex flex-wrap gap-2">
                           {state.attachments.map((att, index) => (
                               <div key={index} className="relative">
                                   <img src={`data:${att.mimeType};base64,${att.data}`} alt={`att ${index}`} className="h-12 w-12 rounded" />
@@ -285,7 +309,9 @@ const OptimizerView: React.FC<OptimizerViewProps> = ({ state, setState, setViewC
                               </div>
                           ))}
                       </div>
-                      <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-white"><PaperclipIcon /></button>
+                      <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-3 right-3 p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-700 transition-colors">
+                          <PaperclipIcon />
+                      </button>
                       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,text/plain"/>
                   </div>
               </div>
